@@ -1,0 +1,202 @@
+openapi: 3.1.0
+info:
+  description: |-
+    Внешний интерфейс Eidos CDI: единственная точка, через которую системы-источники передают данные и обращаются к Золотым записям и согласиям.
+
+    Внешние пути требуют токен источника в заголовке `X-Access-Token`; код источника шлюз берёт из токена и сам подставляет в запрос. Административные пути `/internal/**` закрыты заголовком `X-Admin-Token` и не должны быть доступны снаружи.
+
+    Ошибки — `{"detail": "…"}`. Ответы eidos-stage, eidos-core и eidos-consents шлюз возвращает без изменений.
+  license:
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  title: eidos-gateway
+  version: v1
+servers:
+- url: /
+  description: "Адрес, с которого получена спецификация"
+- url: http://localhost:8090
+  description: "Стенд Docker Compose, с хоста"
+- url: http://eidos-gateway:8090
+  description: Внутри сети Docker Compose
+tags:
+- description: "Каналы приёма из Kafka — по одному на тип сущности: физлица и юрлица приходят разными топиками"
+  name: Потребители Kafka
+paths:
+  /internal/api/v1/kafka-config:
+    get:
+      operationId: getKafkaConfig
+      parameters:
+      - description: "Тип сущности: `PERSON` — физлица, `LEGAL_ENTITY` — юрлица"
+        in: query
+        name: entityType
+        required: false
+        schema:
+          type: string
+          default: PERSON
+          enum:
+          - PERSON
+          - LEGAL_ENTITY
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KafkaConfigView"
+          description: Настройка канала
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Канал не настроен: `Kafka config for <тип> is not set`"
+      security:
+      - X-Admin-Token: []
+      summary: Канал одного типа сущности
+      tags:
+      - Потребители Kafka
+    put:
+      description: Сохраняет настройку для типа сущности из тела и сразу пересоздаёт потребителей. Ошибки подключения к брокеру видны только в журнале шлюза.
+      operationId: saveKafkaConfig
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KafkaConfigRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KafkaConfigView"
+          description: Сохранённая настройка
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Не заполнено обязательное поле: `<поле>: <сообщение>`"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+      security:
+      - X-Admin-Token: []
+      summary: Создать или заменить канал
+      tags:
+      - Потребители Kafka
+  /internal/api/v1/kafka-config/all:
+    get:
+      operationId: listKafkaConfigs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KafkaConfigView"
+          description: Настройки каналов
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+      security:
+      - X-Admin-Token: []
+      summary: "Все каналы, включая выключенные"
+      tags:
+      - Потребители Kafka
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      description: "Ошибка: единая форма ответа сервисов Eidos CDI"
+      properties:
+        detail:
+          type: string
+          description: Что пошло не так
+      required:
+      - detail
+    KafkaConfigRequest:
+      type: object
+      description: Настройка канала приёма из Kafka
+      properties:
+        bootstrapServers:
+          type: string
+          description: Адреса брокеров через запятую
+          example: kafka:9092
+          minLength: 1
+        enabled:
+          type: boolean
+          description: Включён ли потребитель
+        entityType:
+          type: string
+          description: "Тип сущности, которую несёт топик; по умолчанию `PERSON`"
+          enum:
+          - PERSON
+          - LEGAL_ENTITY
+        groupId:
+          type: string
+          description: Группа потребителя
+          example: eidos-gateway
+          minLength: 1
+        topic:
+          type: string
+          description: Топик
+          example: client-data
+          minLength: 1
+      required:
+      - bootstrapServers
+      - enabled
+      - groupId
+      - topic
+    KafkaConfigView:
+      type: object
+      description: Канал приёма из Kafka
+      properties:
+        bootstrapServers:
+          type: string
+          description: Адреса брокеров через запятую
+          example: kafka:9092
+        enabled:
+          type: boolean
+          description: Включён ли потребитель
+        entityType:
+          type: string
+          description: Тип сущности
+          enum:
+          - PERSON
+          - LEGAL_ENTITY
+        groupId:
+          type: string
+          description: Группа потребителя
+          example: eidos-gateway
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор настройки
+        topic:
+          type: string
+          description: Топик
+          example: client-data
+  securitySchemes:
+    X-Access-Token:
+      description: Токен источника из реестра; выдаёт администратор платформы. Дальше шлюза не передаётся.
+      in: header
+      name: X-Access-Token
+      type: apiKey
+    X-Admin-Token:
+      description: Административный токен из настройки `gateway.admin-token`
+      in: header
+      name: X-Admin-Token
+      type: apiKey

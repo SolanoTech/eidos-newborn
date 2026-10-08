@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eidos SCV — макет UI (админ / дата-стюард)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
+<style>
+:root{
+ --color-background-primary:#ffffff; --color-background-secondary:#f5f4ef; --color-background-tertiary:#ecebe4;
+ --color-background-info:#E6F1FB; --color-background-danger:#FCEBEB; --color-background-success:#EAF3DE; --color-background-warning:#FAEEDA;
+ --color-text-primary:#1a1a18; --color-text-secondary:#5F5E5A; --color-text-tertiary:#888780;
+ --color-text-info:#185FA5; --color-text-danger:#A32D2D; --color-text-success:#3B6D11; --color-text-warning:#854F0B;
+ --color-border-tertiary:rgba(0,0,0,0.15); --color-border-secondary:rgba(0,0,0,0.30); --color-border-primary:rgba(0,0,0,0.40); --color-border-info:#378ADD;
+ --border-radius-md:8px; --border-radius-lg:12px;
+ --font-sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ --font-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+ --page-bg:#fbfaf7;
+}
+@media (prefers-color-scheme: dark){
+ :root{
+  --color-background-primary:#26261f; --color-background-secondary:#2f2f27; --color-background-tertiary:#3a3a31;
+  --color-background-info:#0C447C; --color-background-danger:#501313; --color-background-success:#27500A; --color-background-warning:#633806;
+  --color-text-primary:#f3f1e9; --color-text-secondary:#b4b2a9; --color-text-tertiary:#888780;
+  --color-text-info:#85B7EB; --color-text-danger:#F09595; --color-text-success:#C0DD97; --color-text-warning:#FAC775;
+  --color-border-tertiary:rgba(255,255,255,0.15); --color-border-secondary:rgba(255,255,255,0.30); --color-border-primary:rgba(255,255,255,0.40); --color-border-info:#378ADD;
+  --page-bg:#1c1c17;
+ }
+}
+*{box-sizing:border-box;}
+body{margin:0; background:var(--page-bg); color:var(--color-text-primary); font-family:var(--font-sans); line-height:1.5; padding:24px;}
+.page{max-width:760px; margin:0 auto;}
+.page-head{margin:0 0 16px;}
+.page-head h1{font-size:20px; font-weight:500; margin:0 0 4px;}
+.page-head p{font-size:13px; color:var(--color-text-secondary); margin:0;}
+code{font-family:var(--font-mono); font-size:0.92em;}
+h2{font-size:18px; font-weight:500; margin:0; color:var(--color-text-primary);}
+.sub{font-size:13px; color:var(--color-text-secondary); margin:4px 0 14px;}
+input,select{font-family:inherit; font-size:14px; height:36px; padding:0 10px; border:0.5px solid var(--color-border-secondary); border-radius:var(--border-radius-md); background:var(--color-background-primary); color:var(--color-text-primary); width:100%;}
+input:focus,select:focus{outline:none; box-shadow:0 0 0 2px var(--color-border-info);}
+input[type=checkbox]{height:auto; width:auto;}
+button{font-family:inherit; font-size:13px; padding:7px 14px; border:0.5px solid var(--color-border-secondary); border-radius:var(--border-radius-md); background:transparent; color:var(--color-text-primary); cursor:pointer;}
+button:hover{background:var(--color-background-secondary);} button:active{transform:scale(0.98);}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+thead th{text-align:left; color:var(--color-text-secondary); border-bottom:0.5px solid var(--color-border-secondary); padding:8px 6px; font-weight:400;}
+tbody td{padding:9px 6px; border-bottom:0.5px solid var(--color-border-tertiary);}
+.role-opt{flex:1; text-align:center; font-size:12px; padding:5px 0; border-radius:6px; color:var(--color-text-secondary); cursor:pointer;}
+.role-opt.active{background:var(--color-background-primary); color:var(--color-text-primary); font-weight:500;}
+.nav-item{display:flex; align-items:center; gap:9px; padding:9px 16px; font-size:13px; color:var(--color-text-secondary); cursor:pointer;}
+.nav-item:hover{background:var(--color-background-tertiary);}
+.nav-item.active{color:var(--color-text-primary); font-weight:500; box-shadow:inset 2px 0 0 var(--color-text-info);}
+.nav-item i{font-size:17px;}
+.cnt{margin-left:auto; font-size:11px; background:var(--color-background-danger); color:var(--color-text-danger); padding:1px 7px; border-radius:20px;}
+.badge{font-size:11px; padding:2px 8px; border-radius:6px;}
+.mc{background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:12px 14px;}
+.mc .lbl{font-size:12px; color:var(--color-text-secondary);}
+.mc .val{font-size:24px; font-weight:500; margin-top:3px;}
+.fld{display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--color-text-secondary); margin-bottom:12px;}
+.btn{display:inline-flex; align-items:center; gap:6px;}
+</style>
+</head>
+<body>
+<div class="page">
+<div class="page-head">
+  <h1>Eidos SCV — макет интерфейса</h1>
+  <p>Wireframe для дизайн-подряда. Переключайте роль (Админ / Стюард) и разделы слева. Кнопки и строки кликабельны.</p>
+</div>
+
+<div id="app" style="position:relative; display:flex; border:0.5px solid var(--color-border-secondary); border-radius:var(--border-radius-lg); overflow:hidden; min-height:600px; background:var(--color-background-primary);">
+
+  <div style="width:178px; flex-shrink:0; background:var(--color-background-secondary); border-right:0.5px solid var(--color-border-tertiary); padding:14px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 16px 12px; font-size:13px; font-weight:500; color:var(--color-text-secondary); letter-spacing:0.04em;">EIDOS · SCV</div>
+    <div style="padding:0 12px 12px;">
+      <div id="roleSwitch" style="display:flex; background:var(--color-background-tertiary); border-radius:var(--border-radius-md); padding:2px;">
+        <div class="role-opt active" data-role="admin">Админ</div>
+        <div class="role-opt" data-role="steward">Стюард</div>
+      </div>
+    </div>
+    <div id="nav" style="flex:1;"></div>
+    <div style="padding:14px 16px; font-size:12px; color:var(--color-text-tertiary);" id="whoami">admin@solano</div>
+  </div>
+
+  <div style="flex:1; min-width:0; background:var(--color-background-primary); padding:18px 22px;" id="main"></div>
+
+  <div id="modal" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; padding:24px;">
+    <div id="modalCard" style="background:var(--color-background-primary); border-radius:var(--border-radius-lg); border:0.5px solid var(--color-border-secondary); padding:18px 20px; width:100%; max-width:420px;"></div>
+  </div>
+</div>
+</div>
+
+<script>
+function sendPrompt(t){console.log('[action]',t);}
+
+const NAV={
+ admin:[["dash","ti-layout-dashboard","Дашборд"],["sources","ti-database","Источники"],["contract","ti-adjustments","Конструктор"],["kafka","ti-stack-2","Kafka шлюза"]],
+ steward:[["sdash","ti-layout-dashboard","Дашборд"],["queue","ti-alert-triangle","Конфликты",12],["search","ti-search","Поиск"],["record","ti-id","Карточка"]]
+};
+let role="admin";
+const sources=[["tieto","Tieto АБС",9,"tk_a1…","on"],["abs-core","Core Banking",8,"tk_b2…","on"],["scoring","Скоринг",4,"tk_c3…","on"],["partner-x","Партнёр X",2,"tk_d4…","off"]];
+const fields=[["phone","GR_mobilePhoneMain","STRING",1,"^998\\d{9}$",""],["pnfl","GR_pinfl","STRING",1,"\\d{14}",""],["birth_dt","GR_birthDate","DATE",1,"dd.MM.yyyy",""],["sex","GR_gender","GENDER",0,"","1→M, 2→F"],["fname","GR_firstName","STRING",1,"",""],["passport","GR_docPassData","STRING",0,"[A-Z]{2}\\d{7}",""]];
+const prov=[["GR_firstName","Алишер","abs-core",8,"2026-05-12"],["GR_mobilePhoneMain","998901234567","tieto",9,"2026-06-01"],["GR_pinfl","30112900012345","abs-core",8,"2026-05-12"],["GR_birthDate","1990-11-30","abs-core",8,"2026-05-12"],["GR_docPassData","AB1234567","tieto",9,"2026-06-01"]];
+const conflict={name:"Юсупов Жасур",reason:"grey-zone: равное доверие (8 = 8)",rows:[["GR_firstName","Жасур","Жасур",1],["GR_lastName","Юсупов","Юсупов",1],["GR_mobilePhoneMain","998901112233","998905556677",0],["GR_birthDate","1988-03-14","1988-03-14",1],["GR_docPassData","AA1112223","AB9998887",0]]};
+
+function trustBadge(t){return `<span class="badge" style="background:var(--color-background-info); color:var(--color-text-info);">trust ${t}</span>`;}
+function reqBadge(){return '<span class="badge" style="background:var(--color-background-warning); color:var(--color-text-warning);">required</span>';}
+const rnd=(n)=>Math.round(Math.random()*n);
+
+const VIEWS={
+ dash:()=>`<h2>Обзор платформы</h2><p class="sub">Состояние SCV: источники, поток данных, конфликты.</p>
+  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px;">
+   <div class="mc"><div class="lbl">Golden Records</div><div class="val">1 284 502</div></div>
+   <div class="mc"><div class="lbl">Источников</div><div class="val">4</div></div>
+   <div class="mc"><div class="lbl">Конфликтов</div><div class="val" style="color:var(--color-text-danger);">12</div></div>
+   <div class="mc"><div class="lbl">За сутки</div><div class="val">8 940</div></div>
+  </div>
+  <div style="font-size:13px; font-weight:500; margin-bottom:8px;">Активность источников</div>
+  <table><thead><tr><th style="width:30%;">Источник</th><th>Принято (сутки)</th><th>Отклонено валидацией</th><th style="width:18%;">Статус</th></tr></thead><tbody>
+  ${sources.map(s=>`<tr><td><code>${s[0]}</code></td><td>${s[4]==='on'?rnd(4000):'0'}</td><td style="color:var(--color-text-secondary);">${s[4]==='on'?rnd(40):0}</td><td>${s[4]==='on'?'<span style="color:var(--color-text-success);">● активен</span>':'<span style="color:var(--color-text-tertiary);">○ выкл</span>'}</td></tr>`).join('')}
+  </tbody></table>`,
+
+ sources:()=>`<div style="display:flex; justify-content:space-between; align-items:center;"><h2>Реестр источников</h2><button class="btn" onclick="openSourceModal()"><i class="ti ti-plus" aria-hidden="true"></i>Новый источник</button></div>
+  <p class="sub">Единый список систем-источников для stage, gateway и core.</p>
+  <table style="table-layout:fixed;"><thead><tr><th style="width:22%;">Код</th><th style="width:26%;">Название</th><th style="width:16%;">Доверие</th><th style="width:16%;">Токен</th><th style="width:20%;">Статус</th></tr></thead><tbody>
+  ${sources.map(s=>`<tr style="cursor:pointer;" onclick="openSourceModal('${s[0]}')"><td><code>${s[0]}</code></td><td>${s[1]}</td><td>${trustBadge(s[2])}</td><td style="color:var(--color-text-tertiary);"><code>${s[3]}</code></td><td>${s[4]==='on'?'<span style="color:var(--color-text-success);">● активен</span>':'<span style="color:var(--color-text-tertiary);">○ выкл</span>'}</td></tr>`).join('')}
+  </tbody></table>`,
+
+ contract:()=>`<div style="display:flex; justify-content:space-between; align-items:center;"><h2>Конструктор контракта</h2><select style="width:auto;"><option>tieto</option><option>abs-core</option></select></div>
+  <p class="sub">Сопоставление полей <span style="color:var(--color-text-info);">tieto</span> → <code>GoldenRecordDto</code>. Без кода.</p>
+  <div style="display:flex; gap:10px; margin-bottom:14px;"><div class="mc" style="flex:1;"><div class="lbl">Поле-идентификатор</div><div style="font-size:14px; font-weight:500; margin-top:3px;">client_id</div></div><div class="mc" style="flex:1;"><div class="lbl">Полей</div><div style="font-size:14px; font-weight:500; margin-top:3px;">6</div></div></div>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;"><div style="font-size:13px; font-weight:500;">Поля сопоставления</div><button class="btn" style="padding:4px 10px; font-size:12px;" onclick="openFieldModal()"><i class="ti ti-plus" aria-hidden="true"></i>Поле</button></div>
+  <div style="display:flex; flex-direction:column; gap:8px;">
+  ${fields.map((f,i)=>`<div style="border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-md); padding:10px 12px; display:flex; align-items:center; gap:10px; font-size:13px;">
+   <code style="min-width:74px;">${f[0]}</code><i class="ti ti-arrow-right" style="color:var(--color-text-tertiary);" aria-hidden="true"></i><code style="color:var(--color-text-info); min-width:150px;">${f[1]}</code>
+   <span class="badge" style="background:var(--color-background-tertiary); color:var(--color-text-secondary);">${f[2]}</span>${f[3]?reqBadge():''}
+   ${f[4]?`<code style="font-size:11px; color:var(--color-text-tertiary);">${f[4]}</code>`:''}${f[5]?`<span style="font-size:11px; color:var(--color-text-tertiary);">${f[5]}</span>`:''}
+   <span style="margin-left:auto; display:flex; gap:8px; color:var(--color-text-tertiary);"><i class="ti ti-edit" style="cursor:pointer;" onclick="openFieldModal(${i})" aria-hidden="true"></i><i class="ti ti-trash" style="cursor:pointer;" aria-hidden="true"></i></span></div>`).join('')}
+  </div>`,
+
+ kafka:()=>`<h2>Конфигурация Kafka</h2><p class="sub">Консьюмер шлюза. Сохранение по PUT перезапускает консьюмер.</p>
+  <div style="max-width:420px;">
+   <label class="fld"><span>Bootstrap servers</span><input value="kafka-1:9092,kafka-2:9092"></label>
+   <label class="fld"><span>Топик</span><input value="client-data"></label>
+   <label class="fld"><span>Consumer group</span><input value="eidos-gateway"></label>
+   <div style="display:flex; align-items:center; gap:10px; margin:6px 0 14px;"><span style="font-size:13px;">Консьюмер</span><span class="badge" style="background:var(--color-background-success); color:var(--color-text-success);">● работает</span></div>
+   <button class="btn" onclick="sendPrompt('Сохранить конфигурацию Kafka и перезапустить консьюмер')"><i class="ti ti-refresh" aria-hidden="true"></i>Сохранить и перезапустить</button>
+  </div>`,
+
+ sdash:()=>`<h2>Обзор стюарда</h2><p class="sub">Очередь разрешения и качество данных.</p>
+  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px;">
+   <div class="mc"><div class="lbl">В очереди</div><div class="val" style="color:var(--color-text-danger);">12</div></div>
+   <div class="mc"><div class="lbl">Grey-zone</div><div class="val">7</div></div>
+   <div class="mc"><div class="lbl">Unknown source</div><div class="val">5</div></div>
+  </div>
+  <div style="font-size:13px; font-weight:500; margin-bottom:8px;">Свежие конфликты</div>
+  <table><thead><tr><th>Клиент</th><th>Тип</th><th style="width:20%;">Возраст</th></tr></thead><tbody>
+   <tr style="cursor:pointer;" onclick="go('queue')"><td>Юсупов Ж.</td><td><span class="badge" style="background:var(--color-background-warning); color:var(--color-text-warning);">grey-zone</span></td><td style="color:var(--color-text-secondary);">2 ч</td></tr>
+   <tr style="cursor:pointer;" onclick="go('queue')"><td>Ортиков С.</td><td><span class="badge" style="background:var(--color-background-info); color:var(--color-text-info);">unknown source</span></td><td style="color:var(--color-text-secondary);">5 ч</td></tr>
+  </tbody></table>`,
+
+ queue:()=>`<h2>Очередь конфликтов</h2><p class="sub">Tentative-записи: неизвестный источник или равное доверие + расхождение.</p>
+  <div style="display:flex; flex-direction:column; gap:8px;">
+   ${[["Юсупов Жасур","grey-zone","GR_mobilePhoneMain · GR_docPassData",1],["Ортиков Санжар","unknown source","partner-z — нет в реестре",0],["Норова Малика","grey-zone","GR_lastName",1]].map((q)=>`<div style="border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-md); padding:11px 13px; display:flex; align-items:center; gap:10px;">
+    <div><div style="font-size:14px; font-weight:500;">${q[0]}</div><div style="font-size:12px; color:var(--color-text-secondary); margin-top:2px;">${q[2]}</div></div>
+    <span class="badge" style="margin-left:auto; background:${q[1]==='grey-zone'?'var(--color-background-warning); color:var(--color-text-warning)':'var(--color-background-info); color:var(--color-text-info)'};">${q[1]}</span>
+    <button class="btn" style="font-size:12px; padding:4px 12px;" onclick="${q[3]?"go('conflict')":"sendPrompt('Создать golden record из tentative')"}">Разобрать</button>
+   </div>`).join('')}
+  </div>`,
+
+ conflict:()=>`<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;"><i class="ti ti-arrow-left" style="cursor:pointer;" onclick="go('queue')" aria-hidden="true"></i><h2>Разбор конфликта</h2></div>
+  <p class="sub">${conflict.name} · ${conflict.reason}</p>
+  <div style="display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:0; font-size:13px; border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-md); overflow:hidden;">
+   <div style="padding:9px 12px; background:var(--color-background-secondary); font-weight:500;">Поле</div>
+   <div style="padding:9px 12px; background:var(--color-background-secondary); font-weight:500;">tieto (8)</div>
+   <div style="padding:9px 12px; background:var(--color-background-secondary); font-weight:500;">abs-core (8)</div>
+   ${conflict.rows.map(r=>`<div style="padding:9px 12px; border-top:0.5px solid var(--color-border-tertiary);"><code style="color:var(--color-text-info);">${r[0]}</code></div>
+    <div style="padding:9px 12px; border-top:0.5px solid var(--color-border-tertiary); ${r[3]?'':'background:var(--color-background-danger);'}">${r[1]}</div>
+    <div style="padding:9px 12px; border-top:0.5px solid var(--color-border-tertiary); ${r[3]?'':'background:var(--color-background-danger);'}">${r[2]}</div>`).join('')}
+  </div>
+  <div style="font-size:12px; color:var(--color-text-secondary); margin:10px 0 14px;"><span style="display:inline-block; width:10px; height:10px; background:var(--color-background-danger); border-radius:2px; vertical-align:-1px;"></span> расхождение между источниками</div>
+  <div style="display:flex; gap:8px;">
+   <button class="btn" onclick="sendPrompt('Принять все значения tieto и закрыть конфликт')">Принять tieto</button>
+   <button class="btn" onclick="sendPrompt('Принять все значения abs-core и закрыть конфликт')">Принять abs-core</button>
+   <button class="btn" onclick="sendPrompt('Собрать запись по полям вручную')">Собрать вручную</button>
+   <button class="btn" style="color:var(--color-text-danger); margin-left:auto;" onclick="sendPrompt('Отклонить tentative')">Отклонить</button>
+  </div>`,
+
+ search:()=>`<h2>Поиск Golden Records</h2>
+  <div style="display:flex; gap:8px; margin:12px 0 14px;"><input placeholder="ПИНФЛ, телефон, паспорт или gr_client_id" style="flex:1;"><button class="btn" onclick="sendPrompt('Найти golden record')"><i class="ti ti-search" aria-hidden="true"></i></button></div>
+  <table style="table-layout:fixed;"><thead><tr><th style="width:28%;">gr_client_id</th><th>ФИО</th><th style="width:24%;">Телефон</th><th style="width:12%;">Версия</th></tr></thead><tbody>
+   ${[["7f3a…e21","Каримов Алишер","998901234567",14],["b22c…9af","Юсупова Дилноза","998931112200",7],["1d0e…4cc","Ортиков Санжар","998977778899",3]].map(r=>`<tr style="cursor:pointer;" onclick="go('record')"><td><code>${r[0]}</code></td><td>${r[1]}</td><td>${r[2]}</td><td style="color:var(--color-text-tertiary);">v${r[3]}</td></tr>`).join('')}
+  </tbody></table>`,
+
+ record:()=>`<div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+   <div style="width:44px; height:44px; border-radius:50%; background:var(--color-background-info); display:flex; align-items:center; justify-content:center; font-weight:500; color:var(--color-text-info);">КА</div>
+   <div><div style="font-size:15px; font-weight:500;">Каримов Алишер Бахтиёрович</div><div style="font-size:12px; color:var(--color-text-secondary);"><code>gr_client_id 7f3a…e21</code> · версия 14</div></div>
+   <button class="btn" style="margin-left:auto; padding:5px 12px; font-size:12px;" onclick="sendPrompt('Показать историю архива записи 7f3a…e21')"><i class="ti ti-history" aria-hidden="true"></i>История</button>
+  </div>
+  <div style="font-size:13px; font-weight:500; margin-bottom:8px;">Поля и провенанс</div>
+  <div style="display:flex; flex-direction:column; gap:6px;">
+   ${prov.map(p=>`<div style="display:flex; align-items:center; gap:10px; font-size:13px; border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-md); padding:8px 12px;">
+    <code style="min-width:160px; color:var(--color-text-info);">${p[0]}</code><span style="min-width:130px; font-weight:500;">${p[1]}</span>
+    <span class="badge" style="background:var(--color-background-tertiary); color:var(--color-text-secondary);">${p[2]}</span><span style="font-size:11px; color:var(--color-text-tertiary);">trust ${p[3]}</span>
+    <span style="margin-left:auto; font-size:11px; color:var(--color-text-tertiary);"><i class="ti ti-clock" style="font-size:13px; vertical-align:-2px;" aria-hidden="true"></i> ${p[4]}</span></div>`).join('')}
+  </div>`
+};
+
+function renderNav(){
+ document.getElementById('nav').innerHTML=NAV[role].map((n,i)=>`<div class="nav-item ${i===0?'active':''}" data-view="${n[0]}"><i class="ti ${n[1]}" aria-hidden="true"></i>${n[2]}${n[3]?`<span class="cnt">${n[3]}</span>`:''}</div>`).join('');
+ document.querySelectorAll('#nav .nav-item').forEach(el=>el.addEventListener('click',()=>go(el.dataset.view)));
+}
+function go(view){
+ document.querySelectorAll('#nav .nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view===view));
+ document.getElementById('main').innerHTML=(VIEWS[view]||(()=>'<p>—</p>'))();
+}
+function closeModal(){document.getElementById('modal').style.display='none';}
+function openSourceModal(code){
+ const s=code?sources.find(x=>x[0]===code):null;
+ document.getElementById('modalCard').innerHTML=`<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;"><h2>${s?'Редактировать источник':'Новый источник'}</h2><i class="ti ti-x" style="cursor:pointer;" onclick="closeModal()" aria-hidden="true"></i></div>
+  <label class="fld"><span>Код</span><input value="${s?s[0]:''}" placeholder="напр. tieto"></label>
+  <label class="fld"><span>Название</span><input value="${s?s[1]:''}"></label>
+  <label class="fld"><span>Уровень доверия</span><input type="number" value="${s?s[2]:5}"></label>
+  <label class="fld"><span>Токен доступа</span><input value="${s?'••••••••':''}" placeholder="сгенерировать"></label>
+  <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:16px;"><input type="checkbox" ${(!s||s[4]==='on')?'checked':''}>Источник активен</label>
+  <div style="display:flex; gap:8px; justify-content:flex-end;"><button onclick="closeModal()">Отмена</button><button onclick="closeModal();sendPrompt('Сохранить источник')" style="border-color:var(--color-border-info); color:var(--color-text-info);">Сохранить</button></div>`;
+ document.getElementById('modal').style.display='flex';
+}
+function openFieldModal(i){
+ const f=(i!==undefined)?fields[i]:null;
+ const grOpts=["GR_firstName","GR_lastName","GR_mobilePhoneMain","GR_pinfl","GR_birthDate","GR_gender","GR_docPassData"];
+ document.getElementById('modalCard').innerHTML=`<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;"><h2>${f?'Редактировать поле':'Новое поле'}</h2><i class="ti ti-x" style="cursor:pointer;" onclick="closeModal()" aria-hidden="true"></i></div>
+  <label class="fld"><span>Поле источника (dot-path)</span><input value="${f?f[0]:''}" placeholder="напр. person.phone"></label>
+  <label class="fld"><span>Целевое поле GoldenRecordDto</span><select>${grOpts.map(o=>`<option ${f&&f[1]===o?'selected':''}>${o}</option>`).join('')}</select></label>
+  <div style="display:flex; gap:10px;"><label class="fld" style="flex:1;"><span>Тип</span><select>${["STRING","DATE","INTEGER","BOOLEAN","GENDER"].map(o=>`<option ${f&&f[2]===o?'selected':''}>${o}</option>`).join('')}</select></label>
+  <label class="fld" style="flex:1;"><span>Формат даты</span><input value="${f&&f[2]==='DATE'?f[4]:''}" placeholder="dd.MM.yyyy"></label></div>
+  <label class="fld"><span>Regex валидации</span><input value="${f?f[4]:''}" placeholder="^998\\d{9}$"></label>
+  <label class="fld"><span>Value-map (1→M, 2→F)</span><input value="${f?f[5]:''}"></label>
+  <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:16px;"><input type="checkbox" ${f&&f[3]?'checked':''}>Обязательное поле</label>
+  <div style="display:flex; gap:8px; justify-content:flex-end;"><button onclick="closeModal()">Отмена</button><button onclick="closeModal();sendPrompt('Сохранить поле контракта')" style="border-color:var(--color-border-info); color:var(--color-text-info);">Сохранить</button></div>`;
+ document.getElementById('modal').style.display='flex';
+}
+document.querySelectorAll('.role-opt').forEach(el=>el.addEventListener('click',()=>{
+ document.querySelectorAll('.role-opt').forEach(x=>x.classList.toggle('active',x===el));
+ role=el.dataset.role;
+ document.getElementById('whoami').textContent=role==='admin'?'admin@solano':'steward@solano';
+ renderNav(); go(NAV[role][0][0]);
+}));
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+renderNav(); go('dash');
+</script>
+</body>
+</html>

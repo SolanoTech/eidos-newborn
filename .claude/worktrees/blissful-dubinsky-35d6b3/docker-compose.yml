@@ -1,0 +1,277 @@
+name: eidos
+
+services:
+  # ---------- Инфраструктура ----------
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"   # на хосте 5433, чтобы не конфликтовать с локальным Postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks: [eidos-net]
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks: [eidos-net]
+
+  # Однонодовый Kafka-совместимый брокер (Redpanda, KRaft — без ZooKeeper).
+  # Два listener'а: INTERNAL (kafka:9092) для сервисов в сети compose и
+  # EXTERNAL (localhost:19092) для продюсера нагрузочного теста с хоста.
+  kafka:
+    image: redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092
+      - --advertise-kafka-addr=INTERNAL://kafka:9092,EXTERNAL://localhost:19092
+    ports:
+      - "19092:19092"   # доступ с хоста (нагрузочный скрипт)
+      - "9644:9644"     # admin API / метрики Redpanda
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [eidos-net]
+
+  # ---------- Identity (Keycloak) ----------
+  # Realm eidos импортируется из ./keycloak/realm-eidos.json при старте.
+  # Консоль администратора: http://localhost:8180/admin (admin / admin).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev --http-port=8180 --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "8180:8180"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # В образе нет curl/wget — HTTP-проба realm'а через bash /dev/tcp
+      # (нужен Host-заголовок, иначе Quarkus отвечает 500).
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8180 && printf 'GET /realms/eidos HTTP/1.1\\r\\nHost: localhost:8180\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [eidos-net, frontend]
+
+  # ---------- Сервисы SCV ----------
+  # ---------- Хранилище ключей (OpenBao) ----------
+  # Держит KEK: ключ шифрования ключей. Наружу отдаёт только операции
+  # wrap/unwrap над DEK через transit — сам KEK из хранилища не выходит.
+  # Dev-режим: данные в памяти, автоматический unseal, корневой токен задан.
+  # Для среды выше стенда нужен файловый/консульский backend и нормальный unseal.
+  openbao:
+    image: openbao/openbao:latest
+    command: server -dev -dev-listen-address=0.0.0.0:8200
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_TOKEN:-eidos-dev-root-token}
+      BAO_ADDR: http://127.0.0.1:8200
+    cap_add: [IPC_LOCK]
+    ports:
+      - "8200:8200"
+    healthcheck:
+      test: ["CMD-SHELL", "bao status -address=http://127.0.0.1:8200 >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [eidos-net]
+
+  eidos-core:
+    build:
+      context: .
+      dockerfile: eidos-core/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eidos_core
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # Сверка состояния согласия по событиям сервиса согласий.
+      EIDOS_CONSENTS_BASE_URL: http://eidos-consents:8082
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EIDOS_CONSENTS_EVENTS_TOPIC: ${CONSENT_EVENTS_TOPIC:-consent-events}
+      EIDOS_CONSENTS_EVENTS_ENABLED: "true"
+      # Хранилище ключей: наружу выходит только операция wrap/unwrap над DEK.
+      EIDOS_CRYPTO_OPENBAO_BASE_URL: http://openbao:8200
+      EIDOS_CRYPTO_OPENBAO_TOKEN: ${OPENBAO_TOKEN:-eidos-dev-root-token}
+      EIDOS_CRYPTO_OPENBAO_KEK_NAME: ${OPENBAO_KEK_NAME:-eidos-pd-kek}
+      # Swagger UI на /swagger-ui.html; вне стенда по умолчанию выключен.
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      openbao:
+        condition: service_healthy
+    networks: [eidos-net, frontend]
+
+  eidos-stage:
+    build:
+      context: .
+      dockerfile: eidos-stage/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eidos_registry
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_MONGODB_URI: mongodb://mongo:27017/eidos_stage
+      EIDOS_STAGE_ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin-token}
+      EIDOS_CORE_BASE_URL: http://eidos-core:8080
+      # Swagger UI на /swagger-ui.html; вне стенда по умолчанию выключен.
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    networks: [eidos-net, frontend]
+
+  eidos-consents:
+    build:
+      context: ./eidos-consents
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/consents
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # События о согласиях (new / expired) для core и прочих потребителей.
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EIDOS_CONSENTS_EVENTS_TOPIC: ${CONSENT_EVENTS_TOPIC:-consent-events}
+      EIDOS_CONSENTS_EVENTS_ENABLED: "true"
+      EIDOS_CONSENTS_EVENTS_EXPIRY_CRON: ${CONSENT_EXPIRY_CRON:-0 5 0 * * *}
+      # Swagger UI на /swagger-ui.html; вне стенда по умолчанию выключен.
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
+    ports:
+      - "8086:8082"   # host 8086: 8082 занят сторонним стеком gio_apim
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks: [eidos-net]
+
+  eidos-gateway:
+    build:
+      context: ./eidos-gateway
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gateway
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EIDOS_REGISTRY_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eidos_registry
+      EIDOS_REGISTRY_DATASOURCE_USERNAME: postgres
+      EIDOS_REGISTRY_DATASOURCE_PASSWORD: postgres
+      GATEWAY_ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin-token}
+      EIDOS_CORE_BASE_URL: http://eidos-core:8080
+      EIDOS_CONSENTS_BASE_URL: http://eidos-consents:8082
+      EIDOS_STAGE_BASE_URL: http://eidos-stage:8081
+      # Swagger UI на /swagger-ui.html; вне стенда по умолчанию выключен.
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
+    ports:
+      - "8090:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eidos-stage:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    networks: [eidos-net, frontend]
+
+  eidos-cdi-ui-backend:
+    build:
+      context: ./eidos-cdi-ui-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eidos_ui_backend
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8180/realms/eidos/protocol/openid-connect/certs
+      EIDOS_STAGE_BASE_URL: http://eidos-stage:8081
+      EIDOS_STAGE_ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin-token}
+      EIDOS_GATEWAY_BASE_URL: http://eidos-gateway:8090
+      EIDOS_GATEWAY_ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin-token}
+      EIDOS_CORE_BASE_URL: http://eidos-core:8080
+      EIDOS_CONSENTS_BASE_URL: http://eidos-consents:8082
+      # Swagger UI на /swagger-ui.html; вне стенда по умолчанию выключен.
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
+    ports:
+      - "8093:8083"   # host 8093: 8083 занят сторонним стеком gio_apim
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eidos-stage:
+        condition: service_started
+      eidos-gateway:
+        condition: service_started
+      eidos-core:
+        condition: service_started
+    networks: [eidos-net]
+
+  eidos-cdi-ui:
+    build:
+      context: ./eidos-cdi-ui
+      args:
+        APP: admin
+    ports:
+      - "8088:80"
+    depends_on:
+      - eidos-cdi-ui-backend
+    networks: [eidos-net, frontend]
+
+  # CDP-консоль фронт-офиса (Customer 360)
+  eidos-cdp-ui:
+    build:
+      context: ./eidos-cdi-ui
+      args:
+        APP: front-office
+    ports:
+      - "8089:80"
+    depends_on:
+      - eidos-cdi-ui-backend
+    networks: [eidos-net, frontend]
+
+volumes:
+  postgres-data:
+  mongo-data:
+
+networks:
+  eidos-net:
+    driver: bridge
+  # Сеть стека Gravitee APIM (gravitee/docker-compose-apim.yml). Внешняя:
+  # должна существовать до старта (поднимите сначала стек APIM).
+  frontend:
+    external: true
+    name: frontend

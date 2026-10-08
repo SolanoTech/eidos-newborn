@@ -1,0 +1,306 @@
+openapi: 3.1.0
+info:
+  description: |-
+    Сервис согласий Eidos CDI: хранит согласия клиентов на обработку данных, отвечает, действует ли согласие сейчас, и публикует события о согласиях в Kafka.
+
+    Аутентификации нет: сервис держат во внутренней сети. Источникам те же операции доступны через eidos-gateway как `/api/v1/consents/**`, с токеном источника.
+
+    Тип согласия в теле передаётся кодом (`pd`, `bio`, …), в параметре запроса — именем (`PERSONAL_DATA`, `BIO`, …). Идентификатор клиента — UUID Золотой записи без префикса `GR_`.
+
+    Ошибки — `{"detail": "…"}`.
+  license:
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  title: eidos-consents
+  version: v1
+servers:
+- url: /
+  description: "Адрес, с которого получена спецификация"
+- url: http://localhost:8086
+  description: "Стенд Docker Compose, с хоста"
+- url: http://eidos-consents:8082
+  description: Внутри сети Docker Compose
+tags:
+- description: Проба живости для оркестратора и мониторинга
+  name: Служебные
+- description: "Регистрация, проверка и отзыв согласий клиентов"
+  name: Согласия
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                status: ok
+          description: Сервис работает
+      summary: Проба живости
+      tags:
+      - Служебные
+  /internal/api/v1/consents:
+    post:
+      description: "Сохраняет согласие и сразу после фиксации публикует событие `new`. Если `end_date` не задан, срок считается от `initial_date`: полгода для `pd` и `bio`, год для остальных типов."
+      operationId: createConsent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostConsentRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataDetailResponseConsentView"
+          description: Согласие зарегистрировано
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Не заполнено обязательное поле: `<поле>: must not be null`"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Тело не разобрано: не JSON, неизвестный код типа или дата не в формате `yyyy-MM-dd`; в `detail` — сообщение разбора"
+      summary: Зарегистрировать согласие
+      tags:
+      - Согласия
+  /internal/api/v1/consents/active/{client_uuid}:
+    get:
+      description: "Последнее по дате начала согласие типа `type`, действующее сегодня. Не выдавалось, истекло и отозвано выглядят одинаково — `404`."
+      operationId: getActiveConsent
+      parameters:
+      - description: "Идентификатор Золотой записи физлица, UUID без префикса `GR_`"
+        in: path
+        name: client_uuid
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: "**Имя** типа согласия, а не код"
+        in: query
+        name: type
+        required: true
+        schema:
+          type: string
+          enum:
+          - PERSONAL_DATA
+          - BIO
+          - MARKETING_SMS
+          - MARKETING_PUSH
+          - MARKETING_EMAIL
+          - PROFILING
+          - THIRD_PARTY
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentView"
+          description: Действующее согласие
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Не передан `type`, такого имени типа нет или `client_uuid` — не UUID: `Invalid value for parameter '<параметр>': <значение>`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Действующего согласия нет: `No active consent of type <TYPE> for client <uuid>`"
+      summary: Действующее согласие одного типа
+      tags:
+      - Согласия
+  /internal/api/v1/consents/client/{client_uuid}:
+    get:
+      description: "По каждому из семи типов — последнее по дате начала согласие и признак действия на сегодня. Клиент без согласий получает все типы с `active: false`. Имена полей здесь в camelCase."
+      operationId: getClientConsents
+      parameters:
+      - description: "Идентификатор Золотой записи физлица, UUID без префикса `GR_`"
+        in: path
+        name: client_uuid
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConsentStatus"
+          description: Сводка по семи типам
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: '`client_uuid` — не UUID'
+      summary: Согласия клиента по всем типам
+      tags:
+      - Согласия
+  /internal/api/v1/consents/{id}/revoke:
+    post:
+      description: "Дата окончания переносится на вчерашний день, история сохраняется. Событие об отзыве сервис не публикует."
+      operationId: revokeConsent
+      parameters:
+      - description: Идентификатор согласия
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentView"
+          description: Отозванное согласие
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: '`id` — не UUID'
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Согласия нет: `Consent <id> not found`"
+      summary: Отозвать согласие
+      tags:
+      - Согласия
+components:
+  schemas:
+    ConsentStatus:
+      type: object
+      description: Состояние согласия клиента одного типа
+      properties:
+        active:
+          type: boolean
+          description: Действует ли последнее согласие этого типа сегодня
+        code:
+          type: string
+          description: Код типа
+          example: pd
+        consentId:
+          type: string
+          format: uuid
+          description: "Последнее согласие типа; `null`, если согласий не было"
+        endDate:
+          type: string
+          format: date
+          description: "Окончание действия, включительно"
+        startDate:
+          type: string
+          format: date
+          description: Начало действия последнего согласия
+        type:
+          type: string
+          description: Имя типа
+          example: PERSONAL_DATA
+    ConsentView:
+      type: object
+      description: Согласие
+      properties:
+        client_uuid:
+          type: string
+          format: uuid
+          description: "Идентификатор Золотой записи физлица, без префикса `GR_`"
+        end_date:
+          type: string
+          format: date
+          description: "Окончание действия, включительно"
+        id:
+          type: string
+          format: uuid
+          description: Идентификатор согласия
+        source:
+          type: string
+          description: "Код источника, зарегистрировавшего согласие"
+          example: bank-1
+        start_date:
+          type: string
+          format: date
+          description: Начало действия
+        type:
+          type: string
+          description: Код типа согласия
+          enum:
+          - pd
+          - bio
+          - mk_sms
+          - mk_push
+          - mk_email
+          - profiling
+          - third_party
+    DataDetailResponseConsentView:
+      type: object
+      description: Результат с пояснением
+      properties:
+        data:
+          $ref: "#/components/schemas/ConsentView"
+          description: Результат
+        detail:
+          type: string
+          description: Пояснение
+          example: Consent created
+    ErrorResponse:
+      type: object
+      description: "Ошибка: единая форма ответа сервисов Eidos CDI"
+      properties:
+        detail:
+          type: string
+          description: Что пошло не так
+      required:
+      - detail
+    PostConsentRequest:
+      type: object
+      description: Регистрация согласия
+      properties:
+        client_uuid:
+          type: string
+          format: uuid
+          description: "Идентификатор Золотой записи физлица, UUID без префикса `GR_`"
+        end_date:
+          type: string
+          format: date
+          description: "Окончание действия, включительно. Если не задано — полгода для `pd` и `bio`, год для остальных типов"
+        initial_date:
+          type: string
+          format: date
+          description: Начало действия
+        source_name:
+          type: string
+          description: "Кто зарегистрировал согласие: код источника"
+          example: bank-1
+          minLength: 1
+        type:
+          type: string
+          description: Код типа согласия
+          enum:
+          - pd
+          - bio
+          - mk_sms
+          - mk_push
+          - mk_email
+          - profiling
+          - third_party
+      required:
+      - client_uuid
+      - initial_date
+      - source_name
+      - type

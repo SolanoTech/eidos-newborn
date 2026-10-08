@@ -1,0 +1,215 @@
+# Слияние и конфликт
+
+В этом упражнении к Демо CRM добавятся ещё два источника — с более высоким и с
+равным уровнем доверия. Вы увидите, как платформа:
+
+- обновляет только изменившиеся поля и запоминает их происхождение;
+- не даёт источнику переписать данные, которые принадлежат более надёжному
+  источнику;
+- отправляет на ручной разбор расхождение между равными по доверию источниками;
+- откладывает данные от источника, которого не знает ядро.
+
+Нужны результаты [предыдущего упражнения](first-golden-record.md): запись
+клиента Каримова, файл `card.json`, функции `add_field` и `person_contract`,
+переменные `ADMIN_TOKEN`, `DEMO_CRM_TOKEN` и `GR_ID`. Команды выполняются из
+корня репозитория `eidos`.
+
+## Подготовка
+
+Объявите функции регистрации источника и отправки карточки:
+
+```bash
+register_source() {  # $1 — код, $2 — название, $3 — уровень доверия; печатает токен
+  local token="tk_$1_$(openssl rand -hex 16)" id
+  id=$(curl -s -X POST http://localhost:8081/internal/api/v1/sources \
+    -H "X-Admin-Token: $ADMIN_TOKEN" -H "Content-Type: application/json" \
+    -d "{\"code\":\"$1\",\"name\":\"$2\",\"token\":\"$token\",\"trustLevel\":$3,\"enabled\":true}" \
+    | python3 -c 'import sys, json; print(json.load(sys.stdin)["id"])')
+  docker compose exec -T postgres psql -U postgres -d eidos_core -c \
+    "INSERT INTO source (source_name, trust_level) VALUES ('$1', $3)
+     ON CONFLICT (source_name) DO UPDATE SET trust_level = EXCLUDED.trust_level;" > /dev/null
+  person_contract "$id" > /dev/null
+  echo "$token"
+}
+
+send() {  # $1 — токен источника, $2 — файл карточки
+  curl -s -X POST http://localhost:8090/api/v1/client-data \
+    -H "X-Access-Token: $1" -H "Content-Type: application/json" --data-binary @"$2"
+  echo
+}
+
+meta() {  # происхождение полей записи GR_ID
+  curl -s "http://localhost:8080/api/v1/internal/golden-records/$GR_ID/field-meta" \
+    | python3 -c 'import sys, json
+for m in json.load(sys.stdin):
+    print("%-24s %-10s %s" % (m["fieldName"], m["sourceName"], m["trustLevel"]))'
+}
+```
+
+Зарегистрируйте два источника: Демо Банк с доверием 8 и Демо Магазин с тем же
+доверием 5, что у Демо CRM:
+
+```bash
+export DEMO_BANK_TOKEN=$(register_source demo-bank "Демо Банк" 8)
+export DEMO_SHOP_TOKEN=$(register_source demo-shop "Демо Магазин" 5)
+```
+
+## 1. Более надёжный источник обновляет поля
+
+Демо Банк знает того же клиента под своим номером `BANK-77` и присылает новый
+телефон и e-mail. Остальные реквизиты совпадают с Демо CRM:
+
+```bash
+sed -e 's/CRM-000123/BANK-77/' \
+    -e 's/998901234567/998935554433/' \
+    -e 's/a.karimov@example.uz/a.karimov@bank.example.uz/' card.json > bank-card.json
+send "$DEMO_BANK_TOKEN" bank-card.json
+meta
+```
+
+Номер `BANK-77` платформе незнаком, поэтому ядро ищет клиента по реквизитам:
+фамилия, имя, дата рождения и ПИНФЛ совпали с существующей записью. Демо Банк
+надёжнее Демо CRM (8 > 5), и ядро забрало ему **только изменившиеся поля**:
+
+```text
+…
+grContactsEmail          demo-bank  8
+…
+grFirstName              demo-crm   5
+grGender                 demo-crm   5
+grLastName               demo-crm   5
+grMiddleName             demo-crm   5
+grMobilePhoneMain        demo-bank  8
+…
+```
+
+Запись перешла на версию 1, прежнее состояние осталось в архиве. В консоли это
+видно в карточке клиента: чип версии и панель «Происхождение полей».
+
+!!! note "Внешний идентификатор банка не привязался"
+    При слиянии ядро не создаёт связку «demo-bank — BANK-77». Поиск по
+    `source=demo-bank&source_id=BANK-77` не найдёт запись, пока связку не
+    создадут явно — см. [Внешние идентификаторы](../consumers/external-ids.md).
+
+## 2. Источник не может переписать свои же данные
+
+Демо CRM исправляет отчество клиента на «Бахтиярович» и присылает карточку ещё
+раз:
+
+```bash
+sed 's/Бахтиёрович/Бахтиярович/' card.json > crm-fix.json
+send "$DEMO_CRM_TOKEN" crm-fix.json
+meta
+```
+
+Ответ — `SUCCESS`, но запись **не изменилась**:
+
+- отчество принадлежит самому Демо CRM, а источник не может обновить
+  собственные значения;
+- телефон и e-mail в этой карточке старые, но они принадлежат Демо Банку,
+  а источник с меньшим доверием их не трогает.
+
+Первое — ограничение текущей версии, которое важно учитывать при проектировании
+потоков изменений: см. [Первичная загрузка и поток изменений](../sources/initial-load.md).
+
+## 3. Равное доверие — конфликт на разбор
+
+Демо Магазин (доверие 5, как у Демо CRM) знает клиента с отчеством
+«Бахтиярович», а телефон и e-mail у него те же, что у банка:
+
+```bash
+sed -e 's/CRM-000123/SHOP-5/' \
+    -e 's/Бахтиёрович/Бахтиярович/' \
+    -e 's/998901234567/998935554433/' \
+    -e 's/a.karimov@example.uz/a.karimov@bank.example.uz/' card.json > shop-card.json
+send "$DEMO_SHOP_TOKEN" shop-card.json
+```
+
+Отчество принадлежит Демо CRM с тем же уровнем доверия, а значения расходятся.
+Ядро не выбирает победителя само: запись не меняется, а входящая карточка
+уходит в очередь конфликтов.
+
+```bash
+curl -s http://localhost:8080/api/v1/internal/tentative/count
+```
+
+```json
+{"total":1,"greyZone":1,"unknownSource":0}
+```
+
+### Разберите конфликт в консоли
+
+1. Откройте консоль администратора → **Очередь конфликтов**.
+2. В списке — «Каримов Алишер Бахтиёрович · grMiddleName». Нажмите
+   **Разрешить**.
+3. Слева текущее значение (`demo-crm`, trust 5), справа входящее
+   (`demo-shop`, trust 5). Нажмите **Принять входящие**.
+
+??? example "То же через API"
+    ```bash
+    curl -s "http://localhost:8080/api/v1/internal/tentative?reason=GREY_ZONE_CONFLICT"
+    # id конфликта — в content[0].id
+    curl -s -X POST http://localhost:8080/api/v1/internal/tentative/<id>/resolve \
+      -H "Content-Type: application/json" -d '{"action":"ACCEPT_INCOMING"}'
+    ```
+
+Отчество в записи стало «Бахтиярович», поле перешло к `demo-shop`, запись
+получила версию 2:
+
+```bash
+meta | grep grMiddleName
+```
+
+!!! warning "«Принять входящие» применяет всю карточку"
+    Действие переносит в запись **все** непустые значения входящей карточки,
+    отличающиеся от текущих, — не только конфликтное поле. Если бы магазин
+    прислал другой телефон, принятие переписало бы и телефон банка. Перед
+    принятием просмотрите весь список расхождений в окне разбора.
+
+## 4. Источник, которого не знает ядро
+
+Зарегистрируйте источник только в реестре, пропустив регистрацию в ядре:
+
+```bash
+export DEMO_NEW_TOKEN="tk_demo_new_$(openssl rand -hex 16)"
+NEW_ID=$(curl -s -X POST http://localhost:8081/internal/api/v1/sources \
+  -H "X-Admin-Token: $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d "{\"code\":\"demo-new\",\"name\":\"Новый партнёр\",\"token\":\"$DEMO_NEW_TOKEN\",\"trustLevel\":3,\"enabled\":true}" \
+  | python3 -c 'import sys, json; print(json.load(sys.stdin)["id"])')
+person_contract "$NEW_ID"
+sed 's/CRM-000123/NEW-1/' card.json > new-card.json
+send "$DEMO_NEW_TOKEN" new-card.json
+```
+
+Шлюз пропустил карточку — токен и контракт в порядке, — но ядро её отклонило:
+
+```json
+{"detail":"eidos-core rejected record for source=demo-new"}
+```
+
+Данные не потерялись: ядро сохранило их в очереди как «неизвестный источник».
+В консоли эта запись видна в **Очереди конфликтов** с пометкой
+«unknown source». Принять её нельзя — только отклонить. Правильный путь —
+зарегистрировать источник в ядре и отправить данные заново; запись в очереди
+после этого отклоните.
+
+## Итог
+
+| Ситуация | Что сделала платформа |
+|---|---|
+| Источник надёжнее владельца поля, значение другое | Перезаписала поле, сменила его происхождение, подняла версию |
+| Тот же источник прислал новое значение | Ничего |
+| Источник менее надёжен | Ничего |
+| Доверие равное, значения расходятся | Оставила запись как есть, отправила карточку на разбор |
+| Источник не зарегистрирован в ядре | Отклонила, сохранила данные в очереди разбора |
+
+Правила подробно — в разделах [Сопоставление](../concepts/matching.md),
+[Слияние и происхождение](../concepts/merge.md) и
+[Незавершённые записи и конфликты](../concepts/conflicts.md).
+
+## Уборка
+
+Проще всего убрать учебные источники и данные пересозданием стенда:
+`docker compose down -v`, затем снова `docker compose up -d`. Удалить из
+консоли источник, у которого есть дата-контракт, в текущей версии нельзя — см.
+[Регистрация источника](../sources/registration.md#удаление-источника).

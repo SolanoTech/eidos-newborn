@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Eidos CDP — модель развёртывания текущего стенда в нотации ArchiMate 3.
+  Формат: The Open Group ArchiMate Model Exchange File Format.
+  Импорт в Archi: File → Import → Model From Open Exchange File.
+-->
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       identifier="id-eidos-cdp-deployment">
+  <name xml:lang="ru">Eidos CDP — архитектура развёртывания (текущий стенд)</name>
+  <documentation xml:lang="ru">Два контура: внешний приём/выдача данных через eidos-gateway и Kafka; внутренний контур консолей через Gravitee APIM и Keycloak. Развёртывание — Kubernetes, 4 неймспейса.</documentation>
+
+  <elements>
+    <!-- ===== Business layer ===== -->
+    <element identifier="id-actor-admin" xsi:type="BusinessActor">
+      <name xml:lang="ru">Администратор данных</name>
+    </element>
+    <element identifier="id-actor-fo" xsi:type="BusinessActor">
+      <name xml:lang="ru">Оператор фронт-офиса</name>
+    </element>
+
+    <!-- ===== Application layer: внешние системы ===== -->
+    <element identifier="id-app-sources" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">Системы-источники (PSP-A, АБС, Bank-1, Bank-2)</name>
+      <documentation xml:lang="ru">Внешние системы, поставляющие карточки клиентов. Авторизуются токеном источника из реестра.</documentation>
+    </element>
+    <element identifier="id-app-consumers" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">Внешние потребители профиля</name>
+      <documentation xml:lang="ru">Системы, читающие Golden Record и согласия через внешний API.</documentation>
+    </element>
+
+    <!-- ===== Application layer: компоненты платформы ===== -->
+    <element identifier="id-app-gw" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">eidos-gateway</name>
+      <documentation xml:lang="ru">Внешняя точка входа: авторизация источника, валидация дата-контракта, Kafka-консьюмер, прокси чтения.</documentation>
+    </element>
+    <element identifier="id-app-stage" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">eidos-stage</name>
+      <documentation xml:lang="ru">Сырьё в MongoDB, маппинг карточки в Golden Record по конструктору контрактов, реестр источников.</documentation>
+    </element>
+    <element identifier="id-app-core" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">eidos-core</name>
+      <documentation xml:lang="ru">Golden Record: создание, по-полевой merge по trust-уровням, провенанс полей, конфликты.</documentation>
+    </element>
+    <element identifier="id-app-consents" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">eidos-consents</name>
+    </element>
+    <element identifier="id-app-uib" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">ui-backend</name>
+      <documentation xml:lang="ru">Аудит, агрегация дашборда, прокси согласий. OAuth2 resource server Keycloak.</documentation>
+    </element>
+    <element identifier="id-app-console-admin" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">Админ-консоль (SPA)</name>
+    </element>
+    <element identifier="id-app-console-cdp" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">CDP-консоль фронт-офиса (SPA)</name>
+    </element>
+    <element identifier="id-app-gravitee" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">Gravitee API Gateway</name>
+      <documentation xml:lang="ru">Внутренний шлюз консолей: JWT-план по JWKS Keycloak, подписки приложений, инъекция X-Admin-Token. Наружу не публикуется.</documentation>
+    </element>
+    <element identifier="id-app-keycloak" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">Keycloak (realm eidos)</name>
+      <documentation xml:lang="ru">Identity-провайдер: OIDC Authorization Code + PKCE, роли realm_access, сервисные аккаунты вместо API-ключей.</documentation>
+    </element>
+
+    <!-- ===== Application services ===== -->
+    <element identifier="id-svc-ingest" xsi:type="ApplicationService">
+      <name xml:lang="ru">Приём клиентских данных</name>
+    </element>
+    <element identifier="id-svc-read" xsi:type="ApplicationService">
+      <name xml:lang="ru">Выдача профиля и согласий</name>
+    </element>
+    <element identifier="id-svc-auth" xsi:type="ApplicationService">
+      <name xml:lang="ru">Аутентификация (OIDC) и JWKS</name>
+    </element>
+    <element identifier="id-svc-adminapi" xsi:type="ApplicationService">
+      <name xml:lang="ru">Admin API консолей</name>
+    </element>
+    <element identifier="id-svc-audit" xsi:type="ApplicationService">
+      <name xml:lang="ru">Аудит, дашборд и согласия</name>
+    </element>
+
+    <!-- ===== Data objects ===== -->
+    <element identifier="id-do-raw" xsi:type="DataObject">
+      <name xml:lang="ru">Сырьё источника</name>
+    </element>
+    <element identifier="id-do-golden" xsi:type="DataObject">
+      <name xml:lang="ru">Золотая запись (Golden Record)</name>
+    </element>
+    <element identifier="id-do-contract" xsi:type="DataObject">
+      <name xml:lang="ru">Дата-контракт источника</name>
+    </element>
+    <element identifier="id-do-consent" xsi:type="DataObject">
+      <name xml:lang="ru">Согласие клиента</name>
+    </element>
+
+    <!-- ===== Technology layer ===== -->
+    <element identifier="id-node-cluster" xsi:type="Node">
+      <name xml:lang="ru">Kubernetes-кластер</name>
+    </element>
+    <element identifier="id-node-ns-eidos" xsi:type="Node">
+      <name xml:lang="ru">namespace: eidos</name>
+    </element>
+    <element identifier="id-node-ns-apim" xsi:type="Node">
+      <name xml:lang="ru">namespace: apim</name>
+    </element>
+    <element identifier="id-node-ns-identity" xsi:type="Node">
+      <name xml:lang="ru">namespace: identity</name>
+    </element>
+    <element identifier="id-node-ns-data" xsi:type="Node">
+      <name xml:lang="ru">namespace: data</name>
+    </element>
+    <element identifier="id-ss-pg" xsi:type="SystemSoftware">
+      <name xml:lang="ru">PostgreSQL HA (primary + standby)</name>
+      <documentation xml:lang="ru">Базы: eidos_core, eidos_registry, consents, gateway, eidos_ui_backend, keycloak.</documentation>
+    </element>
+    <element identifier="id-ss-mongo" xsi:type="SystemSoftware">
+      <name xml:lang="ru">MongoDB (replica set ×3)</name>
+    </element>
+    <element identifier="id-ss-kafka" xsi:type="SystemSoftware">
+      <name xml:lang="ru">Kafka (3 брокера, топик client-data)</name>
+    </element>
+    <element identifier="id-ss-ingress-ext" xsi:type="SystemSoftware">
+      <name xml:lang="ru">Ingress внешнего контура</name>
+      <documentation xml:lang="ru">TLS-терминация партнёрского трафика; далее — только eidos-gateway.</documentation>
+    </element>
+    <element identifier="id-ss-ingress-int" xsi:type="SystemSoftware">
+      <name xml:lang="ru">Ingress внутреннего контура</name>
+      <documentation xml:lang="ru">Доступ только из корпоративной сети: консоли и вход Keycloak.</documentation>
+    </element>
+    <element identifier="id-net-ext" xsi:type="CommunicationNetwork">
+      <name xml:lang="ru">Внешняя сеть (партнёры)</name>
+    </element>
+    <element identifier="id-net-corp" xsi:type="CommunicationNetwork">
+      <name xml:lang="ru">Корпоративная сеть</name>
+    </element>
+  </elements>
+
+  <relationships>
+    <!-- Консоли обслуживают людей -->
+    <relationship identifier="rel-01" xsi:type="Serving" source="id-app-console-admin" target="id-actor-admin"/>
+    <relationship identifier="rel-02" xsi:type="Serving" source="id-app-console-cdp" target="id-actor-fo"/>
+
+    <!-- Реализация прикладных сервисов -->
+    <relationship identifier="rel-03" xsi:type="Realization" source="id-app-gw" target="id-svc-ingest"/>
+    <relationship identifier="rel-04" xsi:type="Realization" source="id-app-gw" target="id-svc-read"/>
+    <relationship identifier="rel-05" xsi:type="Realization" source="id-app-keycloak" target="id-svc-auth"/>
+    <relationship identifier="rel-06" xsi:type="Realization" source="id-app-gravitee" target="id-svc-adminapi"/>
+    <relationship identifier="rel-07" xsi:type="Realization" source="id-app-uib" target="id-svc-audit"/>
+
+    <!-- Внешний контур: кто пользуется сервисами -->
+    <relationship identifier="rel-08" xsi:type="Serving" source="id-svc-ingest" target="id-app-sources"/>
+    <relationship identifier="rel-09" xsi:type="Serving" source="id-svc-read" target="id-app-consumers"/>
+
+    <!-- Внутренний контур: сервисы для консолей и компонентов -->
+    <relationship identifier="rel-10" xsi:type="Serving" source="id-svc-auth" target="id-app-console-admin"/>
+    <relationship identifier="rel-11" xsi:type="Serving" source="id-svc-auth" target="id-app-console-cdp"/>
+    <relationship identifier="rel-12" xsi:type="Serving" source="id-svc-auth" target="id-app-gravitee"/>
+    <relationship identifier="rel-13" xsi:type="Serving" source="id-svc-auth" target="id-app-uib"/>
+    <relationship identifier="rel-14" xsi:type="Serving" source="id-svc-adminapi" target="id-app-console-admin"/>
+    <relationship identifier="rel-15" xsi:type="Serving" source="id-svc-adminapi" target="id-app-console-cdp"/>
+    <relationship identifier="rel-16" xsi:type="Serving" source="id-svc-audit" target="id-app-console-admin"/>
+    <relationship identifier="rel-17" xsi:type="Serving" source="id-svc-audit" target="id-app-console-cdp"/>
+
+    <!-- Gravitee вызывает internal API сервисов -->
+    <relationship identifier="rel-18" xsi:type="Serving" source="id-app-stage" target="id-app-gravitee">
+      <name xml:lang="ru">реестр и конструктор</name>
+    </relationship>
+    <relationship identifier="rel-19" xsi:type="Serving" source="id-app-gw" target="id-app-gravitee">
+      <name xml:lang="ru">конфигурация Kafka</name>
+    </relationship>
+    <relationship identifier="rel-20" xsi:type="Serving" source="id-app-core" target="id-app-gravitee">
+      <name xml:lang="ru">записи и конфликты</name>
+    </relationship>
+
+    <!-- ui-backend использует сервисы платформы -->
+    <relationship identifier="rel-21" xsi:type="Serving" source="id-app-core" target="id-app-uib"/>
+    <relationship identifier="rel-22" xsi:type="Serving" source="id-app-stage" target="id-app-uib"/>
+    <relationship identifier="rel-23" xsi:type="Serving" source="id-app-consents" target="id-app-uib"/>
+
+    <!-- Потоки внешнего контура -->
+    <relationship identifier="rel-24" xsi:type="Flow" source="id-app-sources" target="id-ss-kafka">
+      <name xml:lang="ru">карточки клиентов</name>
+    </relationship>
+    <relationship identifier="rel-25" xsi:type="Flow" source="id-ss-kafka" target="id-app-gw">
+      <name xml:lang="ru">client-data</name>
+    </relationship>
+    <relationship identifier="rel-26" xsi:type="Flow" source="id-app-gw" target="id-app-stage">
+      <name xml:lang="ru">валидные карточки</name>
+    </relationship>
+    <relationship identifier="rel-27" xsi:type="Flow" source="id-app-stage" target="id-app-core">
+      <name xml:lang="ru">Golden Record DTO</name>
+    </relationship>
+
+    <!-- Доступ к данным -->
+    <relationship identifier="rel-28" xsi:type="Access" accessType="Write" source="id-app-stage" target="id-do-raw"/>
+    <relationship identifier="rel-29" xsi:type="Access" accessType="ReadWrite" source="id-app-core" target="id-do-golden"/>
+    <relationship identifier="rel-30" xsi:type="Access" accessType="Read" source="id-app-gw" target="id-do-contract"/>
+    <relationship identifier="rel-31" xsi:type="Access" accessType="ReadWrite" source="id-app-stage" target="id-do-contract"/>
+    <relationship identifier="rel-32" xsi:type="Access" accessType="ReadWrite" source="id-app-consents" target="id-do-consent"/>
+
+    <!-- Хранилища обслуживают компоненты -->
+    <relationship identifier="rel-33" xsi:type="Serving" source="id-ss-pg" target="id-app-core"/>
+    <relationship identifier="rel-34" xsi:type="Serving" source="id-ss-pg" target="id-app-stage"/>
+    <relationship identifier="rel-35" xsi:type="Serving" source="id-ss-pg" target="id-app-gw"/>
+    <relationship identifier="rel-36" xsi:type="Serving" source="id-ss-pg" target="id-app-consents"/>
+    <relationship identifier="rel-37" xsi:type="Serving" source="id-ss-pg" target="id-app-uib"/>
+    <relationship identifier="rel-38" xsi:type="Serving" source="id-ss-pg" target="id-app-keycloak"/>
+    <relationship identifier="rel-39" xsi:type="Serving" source="id-ss-mongo" target="id-app-stage"/>
+
+    <!-- Развёртывание: узлы исполняют компоненты -->
+    <relationship identifier="rel-40" xsi:type="Assignment" source="id-node-ns-eidos" target="id-app-gw"/>
+    <relationship identifier="rel-41" xsi:type="Assignment" source="id-node-ns-eidos" target="id-app-stage"/>
+    <relationship identifier="rel-42" xsi:type="Assignment" source="id-node-ns-eidos" target="id-app-core"/>
+    <relationship identifier="rel-43" xsi:type="Assignment" source="id-node-ns-eidos" target="id-app-consents"/>
+    <relationship identifier="rel-44" xsi:type="Assignment" source="id-node-ns-eidos" target="id-app-uib"/>
+    <relationship identifier="rel-45" xsi:type="Assignment" source="id-node-ns-eidos" target="id-app-console-admin"/>
+    <relationship identifier="rel-46" xsi:type="Assignment" source="id-node-ns-eidos" target="id-app-console-cdp"/>
+    <relationship identifier="rel-47" xsi:type="Assignment" source="id-node-ns-apim" target="id-app-gravitee"/>
+    <relationship identifier="rel-48" xsi:type="Assignment" source="id-node-ns-identity" target="id-app-keycloak"/>
+    <relationship identifier="rel-49" xsi:type="Assignment" source="id-node-ns-data" target="id-ss-pg"/>
+    <relationship identifier="rel-50" xsi:type="Assignment" source="id-node-ns-data" target="id-ss-mongo"/>
+    <relationship identifier="rel-51" xsi:type="Assignment" source="id-node-ns-data" target="id-ss-kafka"/>
+
+    <!-- Кластер состоит из неймспейсов и ingress'ов -->
+    <relationship identifier="rel-52" xsi:type="Composition" source="id-node-cluster" target="id-node-ns-eidos"/>
+    <relationship identifier="rel-53" xsi:type="Composition" source="id-node-cluster" target="id-node-ns-apim"/>
+    <relationship identifier="rel-54" xsi:type="Composition" source="id-node-cluster" target="id-node-ns-identity"/>
+    <relationship identifier="rel-55" xsi:type="Composition" source="id-node-cluster" target="id-node-ns-data"/>
+    <relationship identifier="rel-56" xsi:type="Assignment" source="id-node-cluster" target="id-ss-ingress-ext"/>
+    <relationship identifier="rel-57" xsi:type="Assignment" source="id-node-cluster" target="id-ss-ingress-int"/>
+
+    <!-- Сети и входы -->
+    <relationship identifier="rel-58" xsi:type="Association" source="id-net-ext" target="id-ss-ingress-ext"/>
+    <relationship identifier="rel-59" xsi:type="Association" source="id-net-corp" target="id-ss-ingress-int"/>
+    <relationship identifier="rel-60" xsi:type="Serving" source="id-ss-ingress-ext" target="id-app-gw"/>
+    <relationship identifier="rel-61" xsi:type="Serving" source="id-ss-ingress-int" target="id-app-console-admin"/>
+    <relationship identifier="rel-62" xsi:type="Serving" source="id-ss-ingress-int" target="id-app-console-cdp"/>
+    <relationship identifier="rel-63" xsi:type="Serving" source="id-ss-ingress-int" target="id-app-keycloak"/>
+  </relationships>
+
+  <views>
+    <diagrams>
+      <view identifier="view-deployment" xsi:type="Diagram">
+        <name xml:lang="ru">Развёртывание: два контура</name>
+
+        <!-- Business -->
+        <node identifier="n-actor-admin" elementRef="id-actor-admin" xsi:type="Element" x="980" y="30" w="180" h="55"/>
+        <node identifier="n-actor-fo" elementRef="id-actor-fo" xsi:type="Element" x="1180" y="30" w="180" h="55"/>
+
+        <!-- Внешние системы -->
+        <node identifier="n-app-sources" elementRef="id-app-sources" xsi:type="Element" x="30" y="30" w="210" h="60"/>
+        <node identifier="n-app-consumers" elementRef="id-app-consumers" xsi:type="Element" x="270" y="30" w="200" h="60"/>
+
+        <!-- Сервисы -->
+        <node identifier="n-svc-ingest" elementRef="id-svc-ingest" xsi:type="Element" x="30" y="140" w="210" h="50"/>
+        <node identifier="n-svc-read" elementRef="id-svc-read" xsi:type="Element" x="270" y="140" w="200" h="50"/>
+        <node identifier="n-svc-auth" elementRef="id-svc-auth" xsi:type="Element" x="760" y="140" w="190" h="50"/>
+        <node identifier="n-svc-adminapi" elementRef="id-svc-adminapi" xsi:type="Element" x="970" y="140" w="190" h="50"/>
+        <node identifier="n-svc-audit" elementRef="id-svc-audit" xsi:type="Element" x="1180" y="140" w="190" h="50"/>
+
+        <!-- Данные -->
+        <node identifier="n-do-raw" elementRef="id-do-raw" xsi:type="Element" x="30" y="330" w="170" h="55"/>
+        <node identifier="n-do-golden" elementRef="id-do-golden" xsi:type="Element" x="30" y="410" w="170" h="55"/>
+        <node identifier="n-do-contract" elementRef="id-do-contract" xsi:type="Element" x="30" y="490" w="170" h="55"/>
+        <node identifier="n-do-consent" elementRef="id-do-consent" xsi:type="Element" x="30" y="570" w="170" h="55"/>
+
+        <!-- Кластер и неймспейсы (координаты абсолютные) -->
+        <node identifier="n-cluster" elementRef="id-node-cluster" xsi:type="Element" x="240" y="240" w="1130" h="800">
+          <node identifier="n-ingress-ext" elementRef="id-ss-ingress-ext" xsi:type="Element" x="270" y="285" w="200" h="45"/>
+          <node identifier="n-ingress-int" elementRef="id-ss-ingress-int" xsi:type="Element" x="1130" y="285" w="210" h="45"/>
+          <node identifier="n-ns-eidos" elementRef="id-node-ns-eidos" xsi:type="Element" x="270" y="360" w="630" h="440">
+            <node identifier="n-app-gw" elementRef="id-app-gw" xsi:type="Element" x="300" y="410" w="175" h="65"/>
+            <node identifier="n-app-stage" elementRef="id-app-stage" xsi:type="Element" x="505" y="410" w="175" h="65"/>
+            <node identifier="n-app-core" elementRef="id-app-core" xsi:type="Element" x="710" y="410" w="165" h="65"/>
+            <node identifier="n-app-consents" elementRef="id-app-consents" xsi:type="Element" x="300" y="520" w="175" h="65"/>
+            <node identifier="n-app-uib" elementRef="id-app-uib" xsi:type="Element" x="505" y="520" w="175" h="65"/>
+            <node identifier="n-console-admin" elementRef="id-app-console-admin" xsi:type="Element" x="300" y="655" w="175" h="65"/>
+            <node identifier="n-console-cdp" elementRef="id-app-console-cdp" xsi:type="Element" x="505" y="655" w="175" h="65"/>
+          </node>
+          <node identifier="n-ns-apim" elementRef="id-node-ns-apim" xsi:type="Element" x="920" y="360" w="205" h="140">
+            <node identifier="n-app-gravitee" elementRef="id-app-gravitee" xsi:type="Element" x="940" y="405" w="165" h="70"/>
+          </node>
+          <node identifier="n-ns-identity" elementRef="id-node-ns-identity" xsi:type="Element" x="1145" y="360" w="200" h="140">
+            <node identifier="n-app-keycloak" elementRef="id-app-keycloak" xsi:type="Element" x="1165" y="405" w="160" h="70"/>
+          </node>
+          <node identifier="n-ns-data" elementRef="id-node-ns-data" xsi:type="Element" x="270" y="850" w="1075" h="160">
+            <node identifier="n-ss-pg" elementRef="id-ss-pg" xsi:type="Element" x="310" y="900" w="230" h="75"/>
+            <node identifier="n-ss-mongo" elementRef="id-ss-mongo" xsi:type="Element" x="580" y="900" w="230" h="75"/>
+            <node identifier="n-ss-kafka" elementRef="id-ss-kafka" xsi:type="Element" x="850" y="900" w="240" h="75"/>
+          </node>
+        </node>
+
+        <!-- Сети -->
+        <node identifier="n-net-ext" elementRef="id-net-ext" xsi:type="Element" x="30" y="1080" w="220" h="55"/>
+        <node identifier="n-net-corp" elementRef="id-net-corp" xsi:type="Element" x="1150" y="1080" w="220" h="55"/>
+
+        <!-- Связи (репрезентативное подмножество; полный набор — в модели) -->
+        <connection identifier="c-01" relationshipRef="rel-01" xsi:type="Relationship" source="n-console-admin" target="n-actor-admin"/>
+        <connection identifier="c-02" relationshipRef="rel-02" xsi:type="Relationship" source="n-console-cdp" target="n-actor-fo"/>
+        <connection identifier="c-03" relationshipRef="rel-03" xsi:type="Relationship" source="n-app-gw" target="n-svc-ingest"/>
+        <connection identifier="c-04" relationshipRef="rel-04" xsi:type="Relationship" source="n-app-gw" target="n-svc-read"/>
+        <connection identifier="c-05" relationshipRef="rel-05" xsi:type="Relationship" source="n-app-keycloak" target="n-svc-auth"/>
+        <connection identifier="c-06" relationshipRef="rel-06" xsi:type="Relationship" source="n-app-gravitee" target="n-svc-adminapi"/>
+        <connection identifier="c-07" relationshipRef="rel-07" xsi:type="Relationship" source="n-app-uib" target="n-svc-audit"/>
+        <connection identifier="c-08" relationshipRef="rel-08" xsi:type="Relationship" source="n-svc-ingest" target="n-app-sources"/>
+        <connection identifier="c-09" relationshipRef="rel-09" xsi:type="Relationship" source="n-svc-read" target="n-app-consumers"/>
+        <connection identifier="c-10" relationshipRef="rel-10" xsi:type="Relationship" source="n-svc-auth" target="n-console-admin"/>
+        <connection identifier="c-11" relationshipRef="rel-12" xsi:type="Relationship" source="n-svc-auth" target="n-app-gravitee"/>
+        <connection identifier="c-12" relationshipRef="rel-14" xsi:type="Relationship" source="n-svc-adminapi" target="n-console-admin"/>
+        <connection identifier="c-13" relationshipRef="rel-15" xsi:type="Relationship" source="n-svc-adminapi" target="n-console-cdp"/>
+        <connection identifier="c-14" relationshipRef="rel-16" xsi:type="Relationship" source="n-svc-audit" target="n-console-admin"/>
+        <connection identifier="c-15" relationshipRef="rel-18" xsi:type="Relationship" source="n-app-stage" target="n-app-gravitee"/>
+        <connection identifier="c-16" relationshipRef="rel-20" xsi:type="Relationship" source="n-app-core" target="n-app-gravitee"/>
+        <connection identifier="c-17" relationshipRef="rel-21" xsi:type="Relationship" source="n-app-core" target="n-app-uib"/>
+        <connection identifier="c-18" relationshipRef="rel-23" xsi:type="Relationship" source="n-app-consents" target="n-app-uib"/>
+        <connection identifier="c-19" relationshipRef="rel-24" xsi:type="Relationship" source="n-app-sources" target="n-ss-kafka"/>
+        <connection identifier="c-20" relationshipRef="rel-25" xsi:type="Relationship" source="n-ss-kafka" target="n-app-gw"/>
+        <connection identifier="c-21" relationshipRef="rel-26" xsi:type="Relationship" source="n-app-gw" target="n-app-stage"/>
+        <connection identifier="c-22" relationshipRef="rel-27" xsi:type="Relationship" source="n-app-stage" target="n-app-core"/>
+        <connection identifier="c-23" relationshipRef="rel-28" xsi:type="Relationship" source="n-app-stage" target="n-do-raw"/>
+        <connection identifier="c-24" relationshipRef="rel-29" xsi:type="Relationship" source="n-app-core" target="n-do-golden"/>
+        <connection identifier="c-25" relationshipRef="rel-31" xsi:type="Relationship" source="n-app-stage" target="n-do-contract"/>
+        <connection identifier="c-26" relationshipRef="rel-32" xsi:type="Relationship" source="n-app-consents" target="n-do-consent"/>
+        <connection identifier="c-27" relationshipRef="rel-33" xsi:type="Relationship" source="n-ss-pg" target="n-app-core"/>
+        <connection identifier="c-28" relationshipRef="rel-39" xsi:type="Relationship" source="n-ss-mongo" target="n-app-stage"/>
+        <connection identifier="c-29" relationshipRef="rel-58" xsi:type="Relationship" source="n-net-ext" target="n-ingress-ext"/>
+        <connection identifier="c-30" relationshipRef="rel-59" xsi:type="Relationship" source="n-net-corp" target="n-ingress-int"/>
+        <connection identifier="c-31" relationshipRef="rel-60" xsi:type="Relationship" source="n-ingress-ext" target="n-app-gw"/>
+        <connection identifier="c-32" relationshipRef="rel-61" xsi:type="Relationship" source="n-ingress-int" target="n-console-admin"/>
+        <connection identifier="c-33" relationshipRef="rel-63" xsi:type="Relationship" source="n-ingress-int" target="n-app-keycloak"/>
+      </view>
+    </diagrams>
+  </views>
+</model>

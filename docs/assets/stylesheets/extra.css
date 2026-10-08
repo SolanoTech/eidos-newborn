@@ -1,0 +1,29 @@
+/*
+ * Оформление сайта документации в палитре консолей Eidos
+ * (eidos-cdi-ui/packages/ui-kit/src/styles.css). Шапка темнее акцента
+ * консоли: белый текст на #8b7cc8 не добирает контраста.
+ */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #5b4ca3;
+  --md-primary-fg-color--light: #8b7cc8;
+  --md-primary-fg-color--dark: #463a85;
+  --md-accent-fg-color: #7b6cc0;
+  --md-accent-fg-color--transparent: rgba(123, 108, 192, 0.1);
+  --md-typeset-a-color: #5b4ca3;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #2b2645;
+  --md-primary-fg-color--light: #3d3466;
+  --md-primary-fg-color--dark: #1f1b33;
+  --md-accent-fg-color: #a9a1ea;
+  --md-accent-fg-color--transparent: rgba(169, 161, 234, 0.1);
+  --md-typeset-a-color: #b3a9ea;
+  --md-default-bg-color: #17151f;
+}
+
+/* Карточки ролей на главной странице. */
+.md-typeset .grid.cards > ul > li,
+.md-typeset .grid > .card {
+  border-radius: 0.5rem;
+}

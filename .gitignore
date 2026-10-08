@@ -1,0 +1,24 @@
+.DS_Store
+
+# Gravitee APIM: runtime-данные и логи (коммитим только compose-файл)
+/gravitee/mongodb/data/
+/gravitee/elasticsearch/data/
+/gravitee/*/logs/
+/gravitee/license.key
+
+# Генерируется loadtest/setup.py, содержит токены окружения
+/loadtest/config.json
+
+__pycache__/
+
+# Локальная обвязка Claude Code: конфиг дев-серверов и персональные настройки.
+# Общий .claude/settings.json, если появится, коммитится — он не здесь.
+/.claude/launch.json
+/.claude/settings.local.json
+
+# Секреты окружения: в репозиторий не попадают (шаблон — .env.example).
+/.env
+
+# Сборка сайта документации и локальное окружение для неё.
+/site/
+/.venv/

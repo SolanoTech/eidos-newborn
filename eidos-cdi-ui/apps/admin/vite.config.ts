@@ -1,0 +1,35 @@
+/*
+ * Copyright 2026 LLC SOLANOTECH
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { fileURLToPath, URL } from "node:url";
+
+// Общие пакеты подключаются напрямую из исходников (без сборки) через alias.
+const alias = {
+  "@eidos/ui-kit": fileURLToPath(new URL("../../packages/ui-kit/src", import.meta.url)),
+  "@eidos/auth": fileURLToPath(new URL("../../packages/auth/src", import.meta.url)),
+  "@eidos/api-client": fileURLToPath(new URL("../../packages/api-client/src", import.meta.url)),
+};
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: { alias, dedupe: ["react", "react-dom", "react-router-dom"] },
+  server: {
+    port: 5173,
+    proxy: { "/api": { target: "http://localhost:8093", changeOrigin: true } },
+  },
+});

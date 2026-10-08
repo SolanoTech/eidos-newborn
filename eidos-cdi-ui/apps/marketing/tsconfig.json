@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@eidos/ui-kit": ["../../packages/ui-kit/src/index.ts"],
+      "@eidos/auth": ["../../packages/auth/src/index.ts"],
+      "@eidos/api-client": ["../../packages/api-client/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

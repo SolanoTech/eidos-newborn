@@ -1,0 +1,400 @@
+openapi: 3.1.0
+info:
+  description: |-
+    Backend-for-frontend консолей Eidos CDI: сводка для дашборда, журнал действий операторов и согласия клиента из карточки.
+
+    Все пути, кроме `/health`, требуют access-токен Keycloak (realm `eidos`) в заголовке `Authorization: Bearer …`; пути `/api/v1/admin/**` — ещё и роль `ADMIN`.
+
+    Ошибки — `{"detail": "…"}`. Ошибки eidos-core, eidos-stage и eidos-consents передаются со своим кодом и телом.
+  license:
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  title: eidos-cdi-ui-backend
+  version: v1
+servers:
+- url: /
+  description: "Адрес, с которого получена спецификация"
+- url: http://localhost:8093
+  description: "Стенд Docker Compose, с хоста"
+- url: http://eidos-cdi-ui-backend:8083
+  description: Внутри сети Docker Compose
+tags:
+- description: "Действия операторов, выполненные через консоли"
+  name: Журнал действий
+- description: "Согласия из карточки клиента: сводка, выдача и отзыв. Запросы уходят в eidos-consents; выдача и отзыв пишутся в журнал действий."
+  name: Согласия клиента
+- description: Сводные показатели для консоли администратора
+  name: Дашборд
+- description: Проба живости для оркестратора и мониторинга
+  name: Служебные
+paths:
+  /api/v1/admin/audit:
+    get:
+      description: Новые записи первыми.
+      operationId: listAuditEvents
+      parameters:
+      - description: "Сколько записей вернуть, от 1 до 500; значение вне диапазона приводится к ближайшей границе"
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditEventView"
+          description: Записи журнала
+        "401":
+          description: "Нет токена, токен просрочен или подпись неверна. Тела нет"
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "В токене нет роли `ADMIN`: `{\"detail\":\"Access denied\"}`"
+      security:
+      - Authorization: []
+      summary: Последние записи журнала
+      tags:
+      - Журнал действий
+  /api/v1/admin/consents/grant:
+    post:
+      description: Регистрирует согласие с сегодняшнего дня на срок по умолчанию для типа; источник согласия — `cdp-console`. Действие пишется в журнал.
+      operationId: grantConsent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrantRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                status: GRANTED
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: Согласие выдано
+        "401":
+          description: "Нет токена, токен просрочен или подпись неверна. Тела нет"
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "В токене нет роли `ADMIN`: `{\"detail\":\"Access denied\"}`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Не заполнено `clientUuid` или `type`
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Ошибка eidos-consents — с её кодом и телом; например, неизвестный код типа"
+      security:
+      - Authorization: []
+      summary: Выдать согласие
+      tags:
+      - Согласия клиента
+  /api/v1/admin/consents/{clientUuid}:
+    get:
+      description: "По каждому типу — последнее согласие и признак действия на сегодня, как в `GET /internal/api/v1/consents/client/{client_uuid}` eidos-consents. Клиент без согласий получает все типы с `active: false`."
+      operationId: getClientConsents
+      parameters:
+      - description: Идентификатор Золотой записи физлица — UUID без префикса `GR_`
+        in: path
+        name: clientUuid
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClientConsentStatus"
+          description: Сводка по семи типам
+        "401":
+          description: "Нет токена, токен просрочен или подпись неверна. Тела нет"
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "В токене нет роли `ADMIN`: `{\"detail\":\"Access denied\"}`"
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Ошибка eidos-consents — с её кодом и телом
+      security:
+      - Authorization: []
+      summary: Согласия клиента по всем типам
+      tags:
+      - Согласия клиента
+  /api/v1/admin/consents/{consentId}/revoke:
+    post:
+      description: "Дата окончания согласия переносится на вчерашний день, история сохраняется. Действие пишется в журнал."
+      operationId: revokeConsent
+      parameters:
+      - description: Идентификатор согласия
+        in: path
+        name: consentId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                status: REVOKED
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: Согласие отозвано
+        "401":
+          description: "Нет токена, токен просрочен или подпись неверна. Тела нет"
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "В токене нет роли `ADMIN`: `{\"detail\":\"Access denied\"}`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Согласия нет: `Consent <id> not found` от eidos-consents"
+      security:
+      - Authorization: []
+      summary: Отозвать согласие
+      tags:
+      - Согласия клиента
+  /api/v1/admin/dashboard:
+    get:
+      description: "Собирает в один ответ метрики eidos-core, реестр источников eidos-stage и статистику приёма за текущие сутки. Реестр отдаётся вместе с токенами доступа источников."
+      operationId: getDashboard
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardResponse"
+          description: Сводка
+        "401":
+          description: "Нет токена, токен просрочен или подпись неверна. Тела нет"
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "В токене нет роли `ADMIN`: `{\"detail\":\"Access denied\"}`"
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Ошибка eidos-core или eidos-stage — с их кодом и телом
+      security:
+      - Authorization: []
+      summary: Сводка для дашборда
+      tags:
+      - Дашборд
+  /health:
+    get:
+      description: Без аутентификации.
+      operationId: health
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                status: UP
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: Сервис работает
+      summary: Проба живости
+      tags:
+      - Служебные
+components:
+  schemas:
+    AuditEventView:
+      type: object
+      description: Запись журнала действий
+      properties:
+        action:
+          type: string
+          description: Что сделано
+          example: Выдано согласие pd
+        actor:
+          type: string
+          description: Оператор — `preferred_username` из токена; `system` для действий без пользователя
+        category:
+          type: string
+          description: Оформление в консоли
+          enum:
+          - gold
+          - ok
+          - warn
+          - bad
+        createdAt:
+          type: string
+          format: date-time
+          description: "Момент записи, ISO-8601 в UTC"
+        details:
+          type: string
+          description: Подробности
+          example: Клиент 5f0c2b1e-8a4d-4c55-9a8e-2b7d4f1c9e10
+        id:
+          type: string
+          format: uuid
+          description: Идентификатор записи
+    ClientConsentStatus:
+      type: object
+      description: Состояние согласия клиента одного типа
+      properties:
+        active:
+          type: boolean
+          description: Действует ли последнее согласие этого типа сегодня
+        code:
+          type: string
+          description: Код типа
+          example: pd
+        consentId:
+          type: string
+          format: uuid
+          description: "Последнее согласие типа; `null`, если согласий не было"
+        endDate:
+          type: string
+          format: date
+          description: "Окончание действия, включительно"
+        startDate:
+          type: string
+          format: date
+          description: Начало действия последнего согласия
+        type:
+          type: string
+          description: Имя типа
+          example: PERSONAL_DATA
+    DashboardResponse:
+      type: object
+      description: Сводка для дашборда
+      properties:
+        activity:
+          type: array
+          description: Принято и отклонено по источникам за текущие сутки
+          items:
+            $ref: "#/components/schemas/IngestStatView"
+        metrics:
+          type: object
+          additionalProperties: {}
+          description: "Метрики eidos-core — ответ `GET /api/v1/internal/metrics` как есть: `grTotal`, `tentativeTotal`, `tentativeGreyZone`, `tentativeUnknownSource`, `phoneValidPct`, `pinflValidPct`, `middleNamePct`, `fresh30dPct`"
+        sources:
+          type: array
+          description: "Реестр источников eidos-stage, вместе с токенами доступа"
+          items:
+            $ref: "#/components/schemas/SourceView"
+    ErrorResponse:
+      type: object
+      description: "Ошибка: единая форма ответа сервисов Eidos CDI"
+      properties:
+        detail:
+          type: string
+          description: Что пошло не так
+      required:
+      - detail
+    GrantRequest:
+      type: object
+      description: Выдача согласия
+      properties:
+        clientUuid:
+          type: string
+          format: uuid
+          description: Идентификатор Золотой записи физлица — UUID без префикса `GR_`
+        type:
+          type: string
+          description: Код типа согласия
+          enum:
+          - pd
+          - bio
+          - mk_sms
+          - mk_push
+          - mk_email
+          - profiling
+          - third_party
+          minLength: 1
+      required:
+      - clientUuid
+      - type
+    IngestStatView:
+      type: object
+      description: Активность источника за период
+      properties:
+        accepted:
+          type: integer
+          format: int64
+          description: Принято сообщений
+        rejected:
+          type: integer
+          format: int64
+          description: Отклонено сообщений
+        sourceCode:
+          type: string
+          description: Код источника
+          example: bank-1
+    SourceView:
+      type: object
+      description: Источник из реестра eidos-stage
+      properties:
+        code:
+          type: string
+          description: Код источника
+          example: bank-1
+        enabled:
+          type: boolean
+          description: Включён ли источник
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор в реестре
+        name:
+          type: string
+          description: Название
+        token:
+          type: string
+          description: Токен доступа источника — значение заголовка `X-Access-Token`
+        trustLevel:
+          type: integer
+          format: int32
+          description: "Уровень доверия: при слиянии побеждает больший"
+    StatusResponse:
+      type: object
+      description: Итог операции
+      properties:
+        status:
+          type: string
+          description: Код итога
+          example: GRANTED
+  securitySchemes:
+    Authorization:
+      bearerFormat: JWT
+      description: "Access-токен Keycloak (realm `eidos`) в заголовке `Authorization: Bearer <токен>`. Роли берутся из claim `realm_access.roles`, имя оператора для журнала — из `preferred_username`."
+      scheme: bearer
+      type: http

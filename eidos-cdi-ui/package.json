@@ -1,0 +1,25 @@
+{
+  "name": "eidos-cdi-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Монорепо консолей Eidos CDI (admin / front-office / marketing)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:admin": "npm run dev -w @eidos/admin",
+    "build:admin": "npm run build -w @eidos/admin",
+    "dev:front-office": "npm run dev -w @eidos/front-office",
+    "build:front-office": "npm run build -w @eidos/front-office",
+    "dev:marketing": "npm run dev -w @eidos/marketing",
+    "build:marketing": "npm run build -w @eidos/marketing"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8"
+  }
+}

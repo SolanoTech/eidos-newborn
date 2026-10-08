@@ -1,0 +1,10 @@
+# Корневой build-контекст (используется образами core и stage, которым нужен shared-library).
+**/target
+**/node_modules
+**/dist
+**/.git
+**/.idea
+**/.mvn/wrapper/maven-wrapper.jar
+**/*.iml
+docs
+*.md

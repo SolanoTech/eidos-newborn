@@ -1,0 +1,77 @@
+{
+  "realm": "eidos",
+  "enabled": true,
+  "displayName": "EIDOS · Customer Data Platform",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "Администратор консолей EIDOS (единая роль)"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "firstName": "Админ",
+      "lastName": "Консоли",
+      "email": "admin@eidos.local",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["ADMIN"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "eidos-console",
+      "name": "Консоли EIDOS (admin + front office)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "rootUrl": "http://localhost:8088",
+      "redirectUris": [
+        "http://localhost:8088/*",
+        "http://localhost:8089/*",
+        "http://localhost:5173/*",
+        "http://localhost:5174/*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8088/*##http://localhost:8089/*"
+      }
+    },
+    {
+      "clientId": "eidos-m2m",
+      "name": "Machine-to-machine доступ (замена API-ключей)",
+      "description": "Service account вместо таблицы api_keys: секрет ротируется в Keycloak, отзыв — выключением клиента.",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "eidos-m2m-secret-change-me",
+      "fullScopeAllowed": true
+    }
+  ]
+}

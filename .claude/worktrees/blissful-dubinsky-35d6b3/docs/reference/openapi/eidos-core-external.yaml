@@ -1,0 +1,482 @@
+openapi: 3.1.0
+info:
+  description: |-
+    Ядро Eidos CDI: хранит Золотые записи физических и юридических лиц, сопоставляет с ними входящие карточки, сливает по уровню доверия источника и отдаёт результат потребителям.
+
+    Аутентификации нет: сервис держат во внутренней сети. Системы-потребители вызывают внешние пути `/api/v1/external/**` через eidos-gateway — тот же путь, с токеном источника в заголовке `X-Access-Token`.
+
+    Идентификаторы Золотых записей: `GR_<uuid>` у физлиц, `LE_<uuid>` у юрлиц. Списки отдаются страницами по 20 записей; параметр `page` считается с единицы, поле `number` в ответе — с нуля.
+
+    Ошибки — `{"detail": "…"}`. В текущей версии отсутствующий обязательный параметр или параметр в неверном формате дают `500`, а не `400`.
+  license:
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  title: eidos-core
+  version: v1
+servers:
+- url: /
+  description: "Адрес, с которого получена спецификация"
+- url: http://localhost:8080
+  description: "Стенд Docker Compose, с хоста"
+- url: http://eidos-core:8080
+  description: Внутри сети Docker Compose
+tags:
+- description: Связки Золотой записи с идентификаторами клиента в системах-источниках
+  name: Внешние идентификаторы
+- description: Поиск Золотой записи физлица по реквизитам и по идентификатору в источнике
+  name: Поиск Золотой записи
+paths:
+  /api/v1/external/golden-records/external-id:
+    put:
+      description: Находит связку по коду источника и прежнему идентификатору и заменяет идентификатор.
+      operationId: updateExternalIdByOldValue
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateExternalIdWithOldRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecordExternalId"
+          description: Связка после изменения
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет источника или связки с прежним значением: `Source Not Found`, `External ID <id> for source <код> does not exist`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Не заполнено `source`, `oldExternalId` или `newExternalId`"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Изменение сохранено, но ответ не сформирован — ограничение текущей версии. Проверьте результат поиском по новому значению"
+      summary: Изменить внешний идентификатор по прежнему значению
+      tags:
+      - Внешние идентификаторы
+  /api/v1/external/golden-records/search/accurate:
+    get:
+      description: "Ищет по фамилии, имени, дате рождения и ПИНФЛ целиком; если ПИНФЛ не задан — по той же тройке с паспортом. Сравнение идёт по слепому индексу: значения должны совпасть точно, с учётом регистра и пробелов."
+      operationId: searchAccurate
+      parameters:
+      - description: Имя
+        in: query
+        name: firstName
+        required: true
+        schema:
+          type: string
+      - description: Фамилия
+        in: query
+        name: lastName
+        required: true
+        schema:
+          type: string
+      - description: "Дата рождения, `yyyy-MM-dd`"
+        in: query
+        name: birthDate
+        required: true
+        schema:
+          type: string
+          format: date
+      - description: "ПИНФЛ, 14 цифр; если задан, паспорт не используется"
+        in: query
+        name: pinfl
+        required: false
+        schema:
+          type: string
+      - description: "Серия и номер паспорта, например `AA1234567`; нужен, если нет ПИНФЛ"
+        in: query
+        name: passport
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecord"
+          description: Золотая запись
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Записи нет: `Golden Record Not Found`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Не задан ни ПИНФЛ, ни паспорт: `Passport or PINFL required for accurate search`"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Не передан обязательный параметр или дата не в формате `yyyy-MM-dd`
+      summary: Точный поиск физлица
+      tags:
+      - Поиск Золотой записи
+  /api/v1/external/golden-records/search/source-id:
+    get:
+      description: "Находит запись, к которой источник привязал свой идентификатор клиента."
+      operationId: searchBySourceId
+      parameters:
+      - description: Код источника
+        example: bank-1
+        in: query
+        name: source
+        required: true
+        schema:
+          type: string
+      - description: Идентификатор клиента в источнике
+        example: CL-778812
+        in: query
+        name: source_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecord"
+          description: Золотая запись
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет источника или связки: `Source Not Found`, `Golden Record Not Found`"
+      summary: Поиск по идентификатору в системе-источнике
+      tags:
+      - Поиск Золотой записи
+  /api/v1/external/golden-records/{uuid}/external-id:
+    post:
+      description: "Связывает Золотую запись `{uuid}` с идентификатором клиента в системе-источнике. На один источник у записи — одна связка."
+      operationId: createExternalId
+      parameters:
+      - description: "Идентификатор Золотой записи, `GR_<uuid>`"
+        in: path
+        name: uuid
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExternalIdRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecordExternalId"
+          description: Связка создана; в ответе — вместе с записью и источником
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "У записи уже есть связка с этим источником: `External ID for source <код> and client <uuid> already exists`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет источника или записи: `Source Not Found`, `Golden Record <uuid> not found`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Не заполнено `source` или `externalId`
+      summary: Привязать внешний идентификатор
+      tags:
+      - Внешние идентификаторы
+    put:
+      description: "Заменяет идентификатор в связке записи `{uuid}` с источником."
+      operationId: updateExternalId
+      parameters:
+      - description: "Идентификатор Золотой записи, `GR_<uuid>`"
+        in: path
+        name: uuid
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExternalIdRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecordExternalId"
+          description: Связка после изменения
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет источника или связки: `Source Not Found`, `External ID for source <код> and client <uuid> does not exist`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Не заполнено `source` или `externalId`
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Изменение сохранено, но ответ не сформирован — ограничение текущей версии. Проверьте результат поиском по новому значению"
+      summary: Изменить внешний идентификатор записи
+      tags:
+      - Внешние идентификаторы
+components:
+  schemas:
+    CreateExternalIdRequest:
+      type: object
+      description: Внешний идентификатор клиента в системе-источнике
+      properties:
+        externalId:
+          type: string
+          description: Идентификатор клиента в источнике
+          example: CL-778812
+          minLength: 1
+        source:
+          type: string
+          description: Код источника
+          example: bank-1
+          minLength: 1
+      required:
+      - externalId
+      - source
+    ErrorResponse:
+      type: object
+      description: "Ошибка: единая форма ответа сервисов Eidos CDI"
+      properties:
+        detail:
+          type: string
+          description: Что пошло не так
+      required:
+      - detail
+    GoldenRecord:
+      type: object
+      description: "Золотая запись физлица. Деловые поля — те же, что в контракте Золотой записи, в camelCase (`GR_FirstName` → `grFirstName`); их описание — в справочнике полей. Ниже описаны служебные поля."
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          description: Когда запись создана
+        grAddrPermRegAddress:
+          type: string
+        grAddrPermRegCadastre:
+          type: string
+        grAddrPermRegCountry:
+          type: string
+        grAddrPermRegCountryId:
+          type: string
+        grAddrPermRegDistrict:
+          type: string
+        grAddrPermRegDistrictId:
+          type: string
+        grAddrPermRegMfy:
+          type: string
+        grAddrPermRegMfyId:
+          type: string
+        grAddrPermRegRegion:
+          type: string
+        grAddrPermRegRegionId:
+          type: string
+        grAddrPermRegRegistrationDate:
+          type: string
+          format: date
+        grAddrPermanentAddress:
+          type: string
+        grAddrTempRegAddress:
+          type: string
+        grAddrTempRegDateFrom:
+          type: string
+          format: date
+        grAddrTempRegDateTill:
+          type: string
+          format: date
+        grAddrTempRegDistrict:
+          type: string
+        grAddrTempRegDistrictId:
+          type: string
+        grAddrTempRegMfy:
+          type: string
+        grAddrTempRegMfyId:
+          type: string
+        grAddrTempRegRegion:
+          type: string
+        grAddrTempRegRegionId:
+          type: string
+        grAddrTemporaryAddress:
+          type: string
+        grBirthCountry:
+          type: string
+        grBirthCountryId:
+          type: string
+        grBirthDate:
+          type: string
+          format: date
+        grBirthPlace:
+          type: string
+        grCitizenship:
+          type: string
+        grCitizenshipId:
+          type: string
+        grClientId:
+          type: string
+          description: "Идентификатор записи, `GR_<uuid>`"
+        grContactsEmail:
+          type: string
+        grDocExpiryDate:
+          type: string
+          format: date
+        grDocIssuedBy:
+          type: string
+        grDocIssuedById:
+          type: string
+        grDocIssuedDate:
+          type: string
+          format: date
+        grDocPassData:
+          type: string
+        grFirstName:
+          type: string
+        grGender:
+          type: string
+          enum:
+          - M
+          - F
+        grLastName:
+          type: string
+        grMiddleName:
+          type: string
+        grMobilePhoneMain:
+          type: string
+        grNationality:
+          type: string
+        grNationalityId:
+          type: string
+        grPinfl:
+          type: string
+        pdBiIdentity:
+          type: string
+          description: "Служебное: слепой индекс (HMAC) по ФИО, дате рождения и ПИНФЛ"
+        pdBiIdentityDoc:
+          type: string
+          description: "Служебное: слепой индекс по ФИО, дате рождения и паспорту"
+        pdBiKeyVersion:
+          type: integer
+          format: int32
+          description: "Служебное: версия ключа слепого индекса"
+        pdBiPinfl:
+          type: string
+          description: "Служебное: слепой индекс ПИНФЛ"
+        pdConsentActive:
+          type: boolean
+          description: Действует ли согласие на обработку ПДн по данным сервиса согласий; `null` — ещё не проверяли
+        pdConsentCheckedAt:
+          type: string
+          format: date-time
+          description: Когда ядро последний раз сверялось с сервисом согласий
+        pdConsentValidTo:
+          type: string
+          format: date
+          description: Последний день действия согласия на обработку ПДн
+        updatedAt:
+          type: string
+          format: date-time
+          description: Когда запись изменена
+        version:
+          type: integer
+          format: int32
+          description: "Версия записи: растёт при каждом изменении"
+    GoldenRecordExternalId:
+      type: object
+      description: Связка Золотой записи с идентификатором клиента в системе-источнике
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          description: Когда связка создана
+        externalId:
+          type: string
+          description: Идентификатор клиента в источнике
+          example: CL-778812
+        goldenRecord:
+          $ref: "#/components/schemas/GoldenRecord"
+          description: Золотая запись
+        id:
+          type: integer
+          format: int32
+          description: Идентификатор связки
+        isActive:
+          type: boolean
+          description: Действует ли связка
+        source:
+          $ref: "#/components/schemas/Source"
+          description: Источник
+    Source:
+      type: object
+      description: "Источник данных, известный ядру"
+      properties:
+        id:
+          type: integer
+          format: int32
+          description: Идентификатор источника в ядре
+        sourceName:
+          type: string
+          description: Код источника
+          example: bank-1
+        trustLevel:
+          type: integer
+          format: int32
+          description: "Уровень доверия: при слиянии побеждает больший"
+    UpdateExternalIdWithOldRequest:
+      type: object
+      description: Замена внешнего идентификатора по прежнему значению
+      properties:
+        newExternalId:
+          type: string
+          description: Новый идентификатор
+          example: CL-990001
+          minLength: 1
+        oldExternalId:
+          type: string
+          description: Прежний идентификатор клиента в источнике
+          example: CL-778812
+          minLength: 1
+        source:
+          type: string
+          description: Код источника
+          example: bank-1
+          minLength: 1
+      required:
+      - newExternalId
+      - oldExternalId
+      - source

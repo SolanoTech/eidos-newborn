@@ -1,0 +1,2009 @@
+openapi: 3.1.0
+info:
+  description: |-
+    Ядро Eidos CDI: хранит Золотые записи физических и юридических лиц, сопоставляет с ними входящие карточки, сливает по уровню доверия источника и отдаёт результат потребителям.
+
+    Аутентификации нет: сервис держат во внутренней сети. Системы-потребители вызывают внешние пути `/api/v1/external/**` через eidos-gateway — тот же путь, с токеном источника в заголовке `X-Access-Token`.
+
+    Идентификаторы Золотых записей: `GR_<uuid>` у физлиц, `LE_<uuid>` у юрлиц. Списки отдаются страницами по 20 записей; параметр `page` считается с единицы, поле `number` в ответе — с нуля.
+
+    Ошибки — `{"detail": "…"}`. В текущей версии отсутствующий обязательный параметр или параметр в неверном формате дают `500`, а не `400`.
+  license:
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  title: eidos-core
+  version: v1
+servers:
+- url: /
+  description: "Адрес, с которого получена спецификация"
+- url: http://localhost:8080
+  description: "Стенд Docker Compose, с хоста"
+- url: http://eidos-core:8080
+  description: Внутри сети Docker Compose
+tags:
+- description: Связки Золотой записи с идентификаторами клиента в системах-источниках
+  name: Внешние идентификаторы
+- description: Поиск Золотой записи физлица по реквизитам и по идентификатору в источнике
+  name: Поиск Золотой записи
+- description: "Золотые записи физических лиц: приём карточек, поиск, карточка, происхождение полей"
+  name: Физлица
+- description: "Золотые записи юридических лиц (мерчантов): приём карточек, поиск, карточка, происхождение полей"
+  name: Юрлица
+- description: Показатели объёма и качества данных для дашборда
+  name: Метрики
+- description: "Карточки физлиц, которые не удалось применить автоматически: от неизвестного источника или с конфликтом при равном доверии"
+  name: "Очередь разбора: физлица"
+- description: Та же очередь для карточек юридических лиц
+  name: "Очередь разбора: юрлица"
+- description: Проба живости для оркестратора и мониторинга
+  name: Служебные
+paths:
+  /api/v1/external/golden-records/external-id:
+    put:
+      description: Находит связку по коду источника и прежнему идентификатору и заменяет идентификатор.
+      operationId: updateExternalIdByOldValue
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateExternalIdWithOldRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecordExternalId"
+          description: Связка после изменения
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет источника или связки с прежним значением: `Source Not Found`, `External ID <id> for source <код> does not exist`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Не заполнено `source`, `oldExternalId` или `newExternalId`"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Изменение сохранено, но ответ не сформирован — ограничение текущей версии. Проверьте результат поиском по новому значению"
+      summary: Изменить внешний идентификатор по прежнему значению
+      tags:
+      - Внешние идентификаторы
+  /api/v1/external/golden-records/search/accurate:
+    get:
+      description: "Ищет по фамилии, имени, дате рождения и ПИНФЛ целиком; если ПИНФЛ не задан — по той же тройке с паспортом. Сравнение идёт по слепому индексу: значения должны совпасть точно, с учётом регистра и пробелов."
+      operationId: searchAccurate
+      parameters:
+      - description: Имя
+        in: query
+        name: firstName
+        required: true
+        schema:
+          type: string
+      - description: Фамилия
+        in: query
+        name: lastName
+        required: true
+        schema:
+          type: string
+      - description: "Дата рождения, `yyyy-MM-dd`"
+        in: query
+        name: birthDate
+        required: true
+        schema:
+          type: string
+          format: date
+      - description: "ПИНФЛ, 14 цифр; если задан, паспорт не используется"
+        in: query
+        name: pinfl
+        required: false
+        schema:
+          type: string
+      - description: "Серия и номер паспорта, например `AA1234567`; нужен, если нет ПИНФЛ"
+        in: query
+        name: passport
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecord"
+          description: Золотая запись
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Записи нет: `Golden Record Not Found`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Не задан ни ПИНФЛ, ни паспорт: `Passport or PINFL required for accurate search`"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Не передан обязательный параметр или дата не в формате `yyyy-MM-dd`
+      summary: Точный поиск физлица
+      tags:
+      - Поиск Золотой записи
+  /api/v1/external/golden-records/search/source-id:
+    get:
+      description: "Находит запись, к которой источник привязал свой идентификатор клиента."
+      operationId: searchBySourceId
+      parameters:
+      - description: Код источника
+        example: bank-1
+        in: query
+        name: source
+        required: true
+        schema:
+          type: string
+      - description: Идентификатор клиента в источнике
+        example: CL-778812
+        in: query
+        name: source_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecord"
+          description: Золотая запись
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет источника или связки: `Source Not Found`, `Golden Record Not Found`"
+      summary: Поиск по идентификатору в системе-источнике
+      tags:
+      - Поиск Золотой записи
+  /api/v1/external/golden-records/{uuid}/external-id:
+    post:
+      description: "Связывает Золотую запись `{uuid}` с идентификатором клиента в системе-источнике. На один источник у записи — одна связка."
+      operationId: createExternalId
+      parameters:
+      - description: "Идентификатор Золотой записи, `GR_<uuid>`"
+        in: path
+        name: uuid
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExternalIdRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecordExternalId"
+          description: Связка создана; в ответе — вместе с записью и источником
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "У записи уже есть связка с этим источником: `External ID for source <код> and client <uuid> already exists`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет источника или записи: `Source Not Found`, `Golden Record <uuid> not found`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Не заполнено `source` или `externalId`
+      summary: Привязать внешний идентификатор
+      tags:
+      - Внешние идентификаторы
+    put:
+      description: "Заменяет идентификатор в связке записи `{uuid}` с источником."
+      operationId: updateExternalId
+      parameters:
+      - description: "Идентификатор Золотой записи, `GR_<uuid>`"
+        in: path
+        name: uuid
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExternalIdRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecordExternalId"
+          description: Связка после изменения
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет источника или связки: `Source Not Found`, `External ID for source <код> and client <uuid> does not exist`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Не заполнено `source` или `externalId`
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Изменение сохранено, но ответ не сформирован — ограничение текущей версии. Проверьте результат поиском по новому значению"
+      summary: Изменить внешний идентификатор записи
+      tags:
+      - Внешние идентификаторы
+  /api/v1/internal/golden-records:
+    post:
+      description: "Вызывает eidos-stage. Запись ищется по идентификатору в источнике, затем точным сопоставлением по ФИО, дате рождения и ПИНФЛ или паспорту; не найдена — создаётся, найдена — сливается по уровню доверия источника. Конфликт при равном доверии уходит в очередь разбора, ответ при этом тоже `200`."
+      operationId: saveGoldenRecord
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostGoldenRecordRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: "Запись создана, слита или конфликт отправлен на разбор"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Источника нет в ядре: `Source <код> not found`. Карточка записана в очередь разбора как `UNKNOWN_SOURCE`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нарушены обязательность или форматы карточки: `<свойство>: <сообщение>; …`"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Сбой при сохранении, например нарушение уникальности ПИНФЛ"
+      summary: Принять карточку физлица
+      tags:
+      - Физлица
+  /api/v1/internal/golden-records/search:
+    get:
+      description: "Подстрока с учётом регистра в фамилии, имени, паспорте или ПИНФЛ. Страницы по 20 записей, по времени создания."
+      operationId: searchGoldenRecords
+      parameters:
+      - description: Образец
+        in: query
+        name: query
+        required: true
+        schema:
+          type: string
+      - description: Номер страницы с единицы
+        in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageGoldenRecord"
+          description: Страница записей
+      summary: Поиск по образцу
+      tags:
+      - Физлица
+  /api/v1/internal/golden-records/search/structured:
+    get:
+      description: "Пустые критерии не участвуют; без критериев — первая страница всех записей. Страницы по 20 записей, по времени создания."
+      operationId: searchGoldenRecordsStructured
+      parameters:
+      - description: "ПИНФЛ целиком: сравнение по слепому индексу, нецифровые символы отбрасываются"
+        in: query
+        name: pinfl
+        required: false
+        schema:
+          type: string
+      - description: Подстрока паспорта; пробелы и регистр не важны
+        in: query
+        name: passport
+        required: false
+        schema:
+          type: string
+      - description: Подстрока фамилии без учёта регистра
+        in: query
+        name: lastName
+        required: false
+        schema:
+          type: string
+      - description: Подстрока имени без учёта регистра
+        in: query
+        name: firstName
+        required: false
+        schema:
+          type: string
+      - description: Подстрока отчества без учёта регистра
+        in: query
+        name: middleName
+        required: false
+        schema:
+          type: string
+      - description: Подстрока телефона; учитываются только цифры
+        in: query
+        name: phone
+        required: false
+        schema:
+          type: string
+      - description: Номер страницы с единицы
+        in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageGoldenRecord"
+          description: Страница записей
+      summary: Поиск по реквизитам
+      tags:
+      - Физлица
+  /api/v1/internal/golden-records/{clientId}:
+    get:
+      operationId: getGoldenRecord
+      parameters:
+      - description: "Идентификатор записи, `GR_<uuid>`"
+        in: path
+        name: clientId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldenRecord"
+          description: Золотая запись
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Записи нет: `Golden Record Not Found`"
+      summary: Карточка физлица
+      tags:
+      - Физлица
+  /api/v1/internal/golden-records/{clientId}/external-ids:
+    get:
+      description: По алфавиту кодов источников; для неизвестной записи — пустой список.
+      operationId: getGoldenRecordExternalIds
+      parameters:
+      - description: "Идентификатор записи, `GR_<uuid>`"
+        in: path
+        name: clientId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExternalIdView"
+          description: Связки с источниками
+      summary: Идентификаторы в системах-источниках
+      tags:
+      - Физлица
+  /api/v1/internal/golden-records/{clientId}/field-meta:
+    get:
+      description: Какой источник и с каким доверием поставил каждое поле и когда. По алфавиту имён полей; для неизвестной записи — пустой список.
+      operationId: getGoldenRecordFieldMeta
+      parameters:
+      - description: "Идентификатор записи, `GR_<uuid>`"
+        in: path
+        name: clientId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FieldMetaView"
+          description: Происхождение полей
+      summary: Происхождение полей
+      tags:
+      - Физлица
+  /api/v1/internal/legal-records:
+    post:
+      description: "Вызывает eidos-stage. Запись ищется по идентификатору в источнике, затем по ИНН; не найдена — создаётся, найдена — сливается по уровню доверия источника. Конфликт при равном доверии уходит в очередь разбора, ответ при этом тоже `200`."
+      operationId: saveLegalEntity
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostLegalEntityRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: "Запись создана, слита или конфликт отправлен на разбор"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Источника нет в ядре: `Source <код> not found`. Карточка записана в очередь разбора как `UNKNOWN_SOURCE`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нарушены обязательность или форматы карточки: `<свойство>: <сообщение>; …`"
+      summary: Принять карточку юрлица
+      tags:
+      - Юрлица
+  /api/v1/internal/legal-records/search/inn:
+    get:
+      operationId: searchLegalEntityByInn
+      parameters:
+      - description: ИНН
+        in: query
+        name: inn
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalEntityRecord"
+          description: Запись юрлица
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "ИНН пустой: `INN is required`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Записи нет: `Legal entity with INN <ИНН> not found`"
+      summary: Точный поиск юрлица по ИНН
+      tags:
+      - Юрлица
+  /api/v1/internal/legal-records/search/name:
+    get:
+      description: "Триграммное сходство нормализованного названия с запросом. Страницы по 20 записей, по убыванию сходства. Если после нормализации от запроса ничего не осталось, страница пуста."
+      operationId: searchLegalEntitiesByName
+      parameters:
+      - description: Название или его часть
+        in: query
+        name: query
+        required: true
+        schema:
+          type: string
+      - description: Номер страницы с единицы
+        in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+      - description: "Порог сходства от 0 до 1, по умолчанию 0,3"
+        in: query
+        name: threshold
+        required: false
+        schema:
+          type: number
+          format: double
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageLegalEntityRecord"
+          description: Страница записей
+      summary: Неточный поиск юрлица по названию
+      tags:
+      - Юрлица
+  /api/v1/internal/legal-records/{grLegalEntityId}:
+    get:
+      operationId: getLegalEntity
+      parameters:
+      - description: "Идентификатор записи, `LE_<uuid>`"
+        in: path
+        name: grLegalEntityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalEntityRecord"
+          description: Запись юрлица
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Записи нет: `Legal entity <id> not found`"
+      summary: Карточка юрлица
+      tags:
+      - Юрлица
+  /api/v1/internal/legal-records/{grLegalEntityId}/external-ids:
+    get:
+      description: По алфавиту кодов источников; для неизвестной записи — пустой список.
+      operationId: getLegalEntityExternalIds
+      parameters:
+      - description: "Идентификатор записи, `LE_<uuid>`"
+        in: path
+        name: grLegalEntityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExternalIdView"
+          description: Связки с источниками
+      summary: Идентификаторы в системах-источниках
+      tags:
+      - Юрлица
+  /api/v1/internal/legal-records/{grLegalEntityId}/field-meta:
+    get:
+      description: Какой источник и с каким доверием поставил каждое поле и когда. По алфавиту имён полей; для неизвестной записи — пустой список.
+      operationId: getLegalEntityFieldMeta
+      parameters:
+      - description: "Идентификатор записи, `LE_<uuid>`"
+        in: path
+        name: grLegalEntityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FieldMetaView"
+          description: Происхождение полей
+      summary: Происхождение полей
+      tags:
+      - Юрлица
+  /api/v1/internal/metrics:
+    get:
+      description: Считаются по Золотым записям физлиц и очереди их разбора при каждом запросе.
+      operationId: getMetrics
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsResponse"
+          description: Метрики
+      summary: Метрики качества данных
+      tags:
+      - Метрики
+  /api/v1/internal/tentative:
+    get:
+      description: "Новые записи первыми, страницы по 20."
+      operationId: listTentative
+      parameters:
+      - description: Причина; без неё — все записи
+        in: query
+        name: reason
+        required: false
+        schema:
+          type: string
+          enum:
+          - UNKNOWN_SOURCE
+          - GREY_ZONE_CONFLICT
+      - description: Номер страницы с единицы
+        in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageTentativeItemView"
+          description: Страница записей очереди
+      summary: Очередь разбора
+      tags:
+      - "Очередь разбора: физлица"
+  /api/v1/internal/tentative-legal:
+    get:
+      description: "Новые записи первыми, страницы по 20."
+      operationId: listTentativeLegal
+      parameters:
+      - description: Причина; без неё — все записи
+        in: query
+        name: reason
+        required: false
+        schema:
+          type: string
+          enum:
+          - UNKNOWN_SOURCE
+          - GREY_ZONE_CONFLICT
+      - description: Номер страницы с единицы
+        in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageTentativeLegalItemView"
+          description: Страница записей очереди
+      summary: Очередь разбора юрлиц
+      tags:
+      - "Очередь разбора: юрлица"
+  /api/v1/internal/tentative-legal/count:
+    get:
+      operationId: countTentativeLegal
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TentativeCounts"
+          description: Счётчики
+      summary: Размер очереди юрлиц по причинам
+      tags:
+      - "Очередь разбора: юрлица"
+  /api/v1/internal/tentative-legal/{id}/resolve:
+    post:
+      description: Запись покидает очередь при любом решении. `ACCEPT_INCOMING` переключает происхождение изменённых полей на источник снимка и сохраняет прежнее состояние записи в архив.
+      operationId: resolveTentativeLegal
+      parameters:
+      - description: Идентификатор записи очереди
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveLegalRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                status: RESOLVED
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: Запись разобрана
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Записи нет: `Tentative legal entity <id> not found`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "`ACCEPT_INCOMING` неприменим: у записи нет юрлица, к которому её применить, или источник снимка не зарегистрирован в ядре"
+      summary: Разобрать запись юрлица
+      tags:
+      - "Очередь разбора: юрлица"
+  /api/v1/internal/tentative/count:
+    get:
+      operationId: countTentative
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TentativeCounts"
+          description: Счётчики
+      summary: Размер очереди по причинам
+      tags:
+      - "Очередь разбора: физлица"
+  /api/v1/internal/tentative/{id}/resolve:
+    post:
+      description: Запись покидает очередь при любом решении. `ACCEPT_INCOMING` переключает происхождение изменённых полей на источник снимка и сохраняет прежнее состояние записи в архив.
+      operationId: resolveTentative
+      parameters:
+      - description: Идентификатор записи очереди
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                status: RESOLVED
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: Запись разобрана
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Записи нет: `Tentative record <id> not found`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "`ACCEPT_INCOMING` неприменим: запись от неизвестного источника (`Unknown source records cannot be merged: register the source and resend the data`) или источник снимка не зарегистрирован в ядре"
+      summary: Разобрать запись
+      tags:
+      - "Очередь разбора: физлица"
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                status: ok
+          description: Сервис работает
+      summary: Проба живости
+      tags:
+      - Служебные
+components:
+  schemas:
+    CreateExternalIdRequest:
+      type: object
+      description: Внешний идентификатор клиента в системе-источнике
+      properties:
+        externalId:
+          type: string
+          description: Идентификатор клиента в источнике
+          example: CL-778812
+          minLength: 1
+        source:
+          type: string
+          description: Код источника
+          example: bank-1
+          minLength: 1
+      required:
+      - externalId
+      - source
+    ErrorResponse:
+      type: object
+      description: "Ошибка: единая форма ответа сервисов Eidos CDI"
+      properties:
+        detail:
+          type: string
+          description: Что пошло не так
+      required:
+      - detail
+    ExternalIdView:
+      type: object
+      description: Связка записи с идентификатором клиента в системе-источнике
+      properties:
+        active:
+          type: boolean
+          description: Действует ли связка
+        createdAt:
+          type: string
+          format: date-time
+          description: Когда связка создана
+        externalId:
+          type: string
+          description: Идентификатор клиента в источнике
+          example: CL-778812
+        sourceName:
+          type: string
+          description: Код источника
+          example: bank-1
+    FieldMetaView:
+      type: object
+      description: Происхождение одного поля Золотой записи
+      properties:
+        fieldName:
+          type: string
+          description: Поле записи
+          example: grFirstName
+        sourceName:
+          type: string
+          description: "Код источника, поставившего значение"
+          example: bank-1
+        trustLevel:
+          type: integer
+          format: int32
+          description: Уровень доверия источника
+        updatedAt:
+          type: string
+          format: date-time
+          description: Когда значение обновлено
+    Founder:
+      type: object
+      properties:
+        inn:
+          type: string
+          pattern: "^\\d{9}$"
+        name:
+          type: string
+          maxLength: 500
+          minLength: 0
+        pinfl:
+          type: string
+          pattern: "^\\d{14}$"
+        sharePercent:
+          type: number
+        uuid:
+          type: string
+          maxLength: 64
+          minLength: 0
+    GoldenRecord:
+      type: object
+      description: "Золотая запись физлица. Деловые поля — те же, что в контракте Золотой записи, в camelCase (`GR_FirstName` → `grFirstName`); их описание — в справочнике полей. Ниже описаны служебные поля."
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          description: Когда запись создана
+        grAddrPermRegAddress:
+          type: string
+        grAddrPermRegCadastre:
+          type: string
+        grAddrPermRegCountry:
+          type: string
+        grAddrPermRegCountryId:
+          type: string
+        grAddrPermRegDistrict:
+          type: string
+        grAddrPermRegDistrictId:
+          type: string
+        grAddrPermRegMfy:
+          type: string
+        grAddrPermRegMfyId:
+          type: string
+        grAddrPermRegRegion:
+          type: string
+        grAddrPermRegRegionId:
+          type: string
+        grAddrPermRegRegistrationDate:
+          type: string
+          format: date
+        grAddrPermanentAddress:
+          type: string
+        grAddrTempRegAddress:
+          type: string
+        grAddrTempRegDateFrom:
+          type: string
+          format: date
+        grAddrTempRegDateTill:
+          type: string
+          format: date
+        grAddrTempRegDistrict:
+          type: string
+        grAddrTempRegDistrictId:
+          type: string
+        grAddrTempRegMfy:
+          type: string
+        grAddrTempRegMfyId:
+          type: string
+        grAddrTempRegRegion:
+          type: string
+        grAddrTempRegRegionId:
+          type: string
+        grAddrTemporaryAddress:
+          type: string
+        grBirthCountry:
+          type: string
+        grBirthCountryId:
+          type: string
+        grBirthDate:
+          type: string
+          format: date
+        grBirthPlace:
+          type: string
+        grCitizenship:
+          type: string
+        grCitizenshipId:
+          type: string
+        grClientId:
+          type: string
+          description: "Идентификатор записи, `GR_<uuid>`"
+        grContactsEmail:
+          type: string
+        grDocExpiryDate:
+          type: string
+          format: date
+        grDocIssuedBy:
+          type: string
+        grDocIssuedById:
+          type: string
+        grDocIssuedDate:
+          type: string
+          format: date
+        grDocPassData:
+          type: string
+        grFirstName:
+          type: string
+        grGender:
+          type: string
+          enum:
+          - M
+          - F
+        grLastName:
+          type: string
+        grMiddleName:
+          type: string
+        grMobilePhoneMain:
+          type: string
+        grNationality:
+          type: string
+        grNationalityId:
+          type: string
+        grPinfl:
+          type: string
+        pdBiIdentity:
+          type: string
+          description: "Служебное: слепой индекс (HMAC) по ФИО, дате рождения и ПИНФЛ"
+        pdBiIdentityDoc:
+          type: string
+          description: "Служебное: слепой индекс по ФИО, дате рождения и паспорту"
+        pdBiKeyVersion:
+          type: integer
+          format: int32
+          description: "Служебное: версия ключа слепого индекса"
+        pdBiPinfl:
+          type: string
+          description: "Служебное: слепой индекс ПИНФЛ"
+        pdConsentActive:
+          type: boolean
+          description: Действует ли согласие на обработку ПДн по данным сервиса согласий; `null` — ещё не проверяли
+        pdConsentCheckedAt:
+          type: string
+          format: date-time
+          description: Когда ядро последний раз сверялось с сервисом согласий
+        pdConsentValidTo:
+          type: string
+          format: date
+          description: Последний день действия согласия на обработку ПДн
+        updatedAt:
+          type: string
+          format: date-time
+          description: Когда запись изменена
+        version:
+          type: integer
+          format: int32
+          description: "Версия записи: растёт при каждом изменении"
+    GoldenRecordDto:
+      type: object
+      properties:
+        GR_BirthCountry:
+          type: string
+        GR_BirthCountryId:
+          type: string
+        GR_BirthDate:
+          type: string
+          format: date
+        GR_BirthPlace:
+          type: string
+        GR_Citizenship:
+          type: string
+          minLength: 1
+        GR_CitizenshipId:
+          type: string
+          minLength: 1
+        GR_FirstName:
+          type: string
+          minLength: 1
+        GR_Gender:
+          type: string
+          enum:
+          - M
+          - F
+        GR_LastName:
+          type: string
+          minLength: 1
+        GR_MiddleName:
+          type: string
+        GR_Nationality:
+          type: string
+        GR_NationalityId:
+          type: string
+        GR_Pinfl:
+          type: string
+          minLength: 1
+          pattern: "^\\d{14}$"
+        GR_addrPermRegAddress:
+          type: string
+        GR_addrPermRegCadastre:
+          type: string
+        GR_addrPermRegCountry:
+          type: string
+        GR_addrPermRegCountryId:
+          type: string
+        GR_addrPermRegDistrict:
+          type: string
+        GR_addrPermRegDistrictId:
+          type: string
+        GR_addrPermRegMfy:
+          type: string
+        GR_addrPermRegMfyId:
+          type: string
+        GR_addrPermRegRegion:
+          type: string
+        GR_addrPermRegRegionId:
+          type: string
+        GR_addrPermRegRegistrationDate:
+          type: string
+          format: date
+        GR_addrPermanentAddress:
+          type: string
+        GR_addrTempRegAddress:
+          type: string
+        GR_addrTempRegDateFrom:
+          type: string
+          format: date
+        GR_addrTempRegDateTill:
+          type: string
+          format: date
+        GR_addrTempRegDistrict:
+          type: string
+        GR_addrTempRegDistrictId:
+          type: string
+        GR_addrTempRegMfy:
+          type: string
+        GR_addrTempRegMfyId:
+          type: string
+        GR_addrTempRegRegion:
+          type: string
+        GR_addrTempRegRegionId:
+          type: string
+        GR_addrTemporaryAddress:
+          type: string
+        GR_contactsEmail:
+          type: string
+        GR_docExpiryDate:
+          type: string
+          format: date
+        GR_docIssuedBy:
+          type: string
+          minLength: 1
+        GR_docIssuedById:
+          type: string
+          minLength: 1
+        GR_docIssuedDate:
+          type: string
+          format: date
+        GR_docPassData:
+          type: string
+          minLength: 1
+          pattern: "^[A-Z]{2}\\d{7}$"
+        GR_mobilePhoneMain:
+          type: string
+          minLength: 1
+          pattern: "^998\\d{9}$"
+      required:
+      - GR_BirthDate
+      - GR_Citizenship
+      - GR_CitizenshipId
+      - GR_FirstName
+      - GR_Gender
+      - GR_LastName
+      - GR_Pinfl
+      - GR_docIssuedBy
+      - GR_docIssuedById
+      - GR_docIssuedDate
+      - GR_docPassData
+      - GR_mobilePhoneMain
+    GoldenRecordExternalId:
+      type: object
+      description: Связка Золотой записи с идентификатором клиента в системе-источнике
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          description: Когда связка создана
+        externalId:
+          type: string
+          description: Идентификатор клиента в источнике
+          example: CL-778812
+        goldenRecord:
+          $ref: "#/components/schemas/GoldenRecord"
+          description: Золотая запись
+        id:
+          type: integer
+          format: int32
+          description: Идентификатор связки
+        isActive:
+          type: boolean
+          description: Действует ли связка
+        source:
+          $ref: "#/components/schemas/Source"
+          description: Источник
+    LegalEntityGoldenRecordDto:
+      type: object
+      properties:
+        GR_ActivityStateCode:
+          type: integer
+          format: int32
+        GR_ActivityStateDetailId:
+          type: integer
+          format: int32
+        GR_ActivityStateName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_AddressFull:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_BuildingsTotal:
+          type: integer
+          format: int32
+        GR_BusinessTypeId:
+          type: integer
+          format: int32
+        GR_BusinessTypeName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_CadastresTotal:
+          type: integer
+          format: int32
+        GR_ConnectionsTotal:
+          type: integer
+          format: int32
+        GR_CourtsTotal:
+          type: integer
+          format: int32
+        GR_DealsCustomerTotal:
+          type: integer
+          format: int32
+        GR_DealsProviderTotal:
+          type: integer
+          format: int32
+        GR_DirectorName:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_DirectorUuid:
+          type: string
+          maxLength: 64
+          minLength: 0
+        GR_DistrictCode:
+          type: integer
+          format: int32
+        GR_DistrictName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_Email:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_EmailStatus:
+          type: integer
+          format: int32
+        GR_Flat:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_Founders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Founder"
+        GR_FoundersCount:
+          type: integer
+          format: int32
+        GR_FullName:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_House:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_Inn:
+          type: string
+          minLength: 1
+          pattern: "^\\d{9}$"
+        GR_IsActive:
+          type: boolean
+        GR_IsBankrupt:
+          type: boolean
+        GR_IsDishonestExecutor:
+          type: boolean
+        GR_IsSmallBusiness:
+          type: boolean
+        GR_IsSupplier:
+          type: boolean
+        GR_IsVatAbuser:
+          type: boolean
+        GR_IsVatPayer:
+          type: boolean
+        GR_KfsCode:
+          type: integer
+          format: int32
+        GR_KfsName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_LicensesTotal:
+          type: integer
+          format: int32
+        GR_OkedCode:
+          type: string
+          maxLength: 15
+          minLength: 0
+        GR_OkedName:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_OkedNameUz:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_OpfCode:
+          type: string
+          maxLength: 15
+          minLength: 0
+        GR_OpfName:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_OpfNameUz:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_Phones:
+          type: array
+          items:
+            type: string
+        GR_Postcode:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_RegionCode:
+          type: integer
+          format: int32
+        GR_RegionName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_RegistrationAuthority:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_RegistrationDate:
+          type: string
+          format: date
+        GR_RegistrationNumber:
+          type: string
+          maxLength: 15
+          minLength: 0
+        GR_ShortName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        GR_SoatoCode:
+          type: string
+          maxLength: 15
+          minLength: 0
+        GR_SoatoName:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_SooguCode:
+          type: string
+          maxLength: 5
+          minLength: 0
+        GR_SooguName:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_StatutoryFund:
+          type: number
+        GR_StreetName:
+          type: string
+          maxLength: 500
+          minLength: 0
+        GR_TaxMode:
+          type: integer
+          format: int32
+        GR_TrustRating:
+          type: string
+          maxLength: 10
+          minLength: 0
+        GR_TrustScore:
+          type: integer
+          format: int32
+        GR_VatNumber:
+          type: string
+          maxLength: 20
+          minLength: 0
+        GR_VillageCode:
+          type: integer
+          format: int32
+        GR_VillageName:
+          type: string
+          maxLength: 255
+          minLength: 0
+      required:
+      - GR_FullName
+      - GR_Inn
+      - GR_IsActive
+      - GR_IsBankrupt
+      - GR_OkedCode
+      - GR_OkedName
+    LegalEntityRecord:
+      type: object
+      description: "Золотая запись юрлица (мерчанта). Деловые поля — те же, что в контракте Золотой записи юрлица, в camelCase (`GR_Inn` → `grInn`); их описание — в справочнике полей. Ниже описаны служебные поля."
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          description: Когда запись создана
+        grActivityStateCode:
+          type: integer
+          format: int32
+        grActivityStateDetailId:
+          type: integer
+          format: int32
+        grActivityStateName:
+          type: string
+        grAddressFull:
+          type: string
+        grBuildingsTotal:
+          type: integer
+          format: int32
+        grBusinessTypeId:
+          type: integer
+          format: int32
+        grBusinessTypeName:
+          type: string
+        grCadastresTotal:
+          type: integer
+          format: int32
+        grConnectionsTotal:
+          type: integer
+          format: int32
+        grCourtsTotal:
+          type: integer
+          format: int32
+        grDealsCustomerTotal:
+          type: integer
+          format: int32
+        grDealsProviderTotal:
+          type: integer
+          format: int32
+        grDirectorName:
+          type: string
+        grDirectorUuid:
+          type: string
+        grDistrictCode:
+          type: integer
+          format: int32
+        grDistrictName:
+          type: string
+        grEmail:
+          type: string
+        grEmailStatus:
+          type: integer
+          format: int32
+        grFlat:
+          type: string
+        grFounders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Founder"
+        grFoundersCount:
+          type: integer
+          format: int32
+        grFullName:
+          type: string
+        grHouse:
+          type: string
+        grInn:
+          type: string
+        grIsActive:
+          type: boolean
+        grIsBankrupt:
+          type: boolean
+        grIsDishonestExecutor:
+          type: boolean
+        grIsSmallBusiness:
+          type: boolean
+        grIsSupplier:
+          type: boolean
+        grIsVatAbuser:
+          type: boolean
+        grIsVatPayer:
+          type: boolean
+        grKfsCode:
+          type: integer
+          format: int32
+        grKfsName:
+          type: string
+        grLegalEntityId:
+          type: string
+          description: "Идентификатор записи, `LE_<uuid>`"
+        grLicensesTotal:
+          type: integer
+          format: int32
+        grOkedCode:
+          type: string
+        grOkedName:
+          type: string
+        grOkedNameUz:
+          type: string
+        grOpfCode:
+          type: string
+        grOpfName:
+          type: string
+        grOpfNameUz:
+          type: string
+        grPhones:
+          type: array
+          items:
+            type: string
+        grPostcode:
+          type: string
+        grRegionCode:
+          type: integer
+          format: int32
+        grRegionName:
+          type: string
+        grRegistrationAuthority:
+          type: string
+        grRegistrationDate:
+          type: string
+          format: date
+        grRegistrationNumber:
+          type: string
+        grShortName:
+          type: string
+        grSoatoCode:
+          type: string
+        grSoatoName:
+          type: string
+        grSooguCode:
+          type: string
+        grSooguName:
+          type: string
+        grStatutoryFund:
+          type: number
+        grStreetName:
+          type: string
+        grTaxMode:
+          type: integer
+          format: int32
+        grTrustRating:
+          type: string
+        grTrustScore:
+          type: integer
+          format: int32
+        grVatNumber:
+          type: string
+        grVillageCode:
+          type: integer
+          format: int32
+        grVillageName:
+          type: string
+        nameNormalized:
+          type: string
+          description: "Служебное: нормализованное название для неточного поиска"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Когда запись изменена
+        version:
+          type: integer
+          format: int32
+          description: "Версия записи: растёт при каждом изменении"
+    MetricsResponse:
+      type: object
+      description: Показатели по Золотым записям физлиц; доли — в процентах с одним знаком
+      properties:
+        fresh30dPct:
+          type: number
+          format: double
+          description: "Доля записей, изменённых за последние 30 дней"
+        grTotal:
+          type: integer
+          format: int64
+          description: Число Золотых записей
+        middleNamePct:
+          type: number
+          format: double
+          description: Доля записей с отчеством
+        phoneValidPct:
+          type: number
+          format: double
+          description: Доля записей с телефоном вида `998XXXXXXXXX`
+        pinflValidPct:
+          type: number
+          format: double
+          description: Доля записей с ПИНФЛ из 14 цифр
+        tentativeGreyZone:
+          type: integer
+          format: int64
+          description: Из них конфликтов при равном доверии (`GREY_ZONE_CONFLICT`)
+        tentativeTotal:
+          type: integer
+          format: int64
+          description: Размер очереди разбора физлиц
+        tentativeUnknownSource:
+          type: integer
+          format: int64
+          description: Из них от неизвестных источников (`UNKNOWN_SOURCE`)
+    PageGoldenRecord:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoldenRecord"
+        empty:
+          type: boolean
+        first:
+          type: boolean
+        last:
+          type: boolean
+        number:
+          type: integer
+          format: int32
+        numberOfElements:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        size:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageLegalEntityRecord:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/LegalEntityRecord"
+        empty:
+          type: boolean
+        first:
+          type: boolean
+        last:
+          type: boolean
+        number:
+          type: integer
+          format: int32
+        numberOfElements:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        size:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageTentativeItemView:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/TentativeItemView"
+        empty:
+          type: boolean
+        first:
+          type: boolean
+        last:
+          type: boolean
+        number:
+          type: integer
+          format: int32
+        numberOfElements:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        size:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageTentativeLegalItemView:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/TentativeLegalItemView"
+        empty:
+          type: boolean
+        first:
+          type: boolean
+        last:
+          type: boolean
+        number:
+          type: integer
+          format: int32
+        numberOfElements:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        size:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageableObject:
+      type: object
+      properties:
+        offset:
+          type: integer
+          format: int64
+        pageNumber:
+          type: integer
+          format: int32
+        pageSize:
+          type: integer
+          format: int32
+        paged:
+          type: boolean
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        unpaged:
+          type: boolean
+    PostGoldenRecordRequest:
+      type: object
+      description: "Карточка физлица от eidos-stage, уже приведённая к контракту Золотой записи"
+      properties:
+        client_source_identificator:
+          type: string
+          description: "Идентификатор клиента в источнике: по нему запись находится при следующих поступлениях"
+          example: CL-778812
+          minLength: 1
+        record:
+          $ref: "#/components/schemas/GoldenRecordDto"
+          description: "Карточка в формате контракта: поля `GR_…`, см. справочник полей Золотой записи физлица"
+        source:
+          type: string
+          description: Код источника
+          example: bank-1
+          minLength: 1
+      required:
+      - client_source_identificator
+      - record
+      - source
+    PostLegalEntityRequest:
+      type: object
+      description: "Карточка юрлица от eidos-stage, уже приведённая к контракту Золотой записи"
+      properties:
+        client_source_identificator:
+          type: string
+          description: "Идентификатор клиента в источнике: по нему запись находится при следующих поступлениях"
+          example: CL-778812
+          minLength: 1
+        record:
+          $ref: "#/components/schemas/LegalEntityGoldenRecordDto"
+          description: "Карточка в формате контракта: поля `GR_…`, см. справочник полей Золотой записи юрлица"
+        source:
+          type: string
+          description: Код источника
+          example: bank-1
+          minLength: 1
+      required:
+      - client_source_identificator
+      - record
+      - source
+    ResolveLegalRequest:
+      type: object
+      description: Решение по записи очереди юрлиц
+      properties:
+        action:
+          type: string
+          description: '`KEEP_CURRENT` — оставить запись как есть; `ACCEPT_INCOMING` — перенести отличающиеся непустые значения снимка в запись; `REJECT` — отклонить'
+          enum:
+          - KEEP_CURRENT
+          - ACCEPT_INCOMING
+          - REJECT
+    ResolveRequest:
+      type: object
+      description: Решение по записи очереди
+      properties:
+        action:
+          type: string
+          description: '`KEEP_CURRENT` — оставить запись как есть; `ACCEPT_INCOMING` — перенести отличающиеся непустые значения снимка в запись; `REJECT` — отклонить'
+          enum:
+          - KEEP_CURRENT
+          - ACCEPT_INCOMING
+          - REJECT
+    SortObject:
+      type: object
+      properties:
+        empty:
+          type: boolean
+        sorted:
+          type: boolean
+        unsorted:
+          type: boolean
+    Source:
+      type: object
+      description: "Источник данных, известный ядру"
+      properties:
+        id:
+          type: integer
+          format: int32
+          description: Идентификатор источника в ядре
+        sourceName:
+          type: string
+          description: Код источника
+          example: bank-1
+        trustLevel:
+          type: integer
+          format: int32
+          description: "Уровень доверия: при слиянии побеждает больший"
+    StatusResponse:
+      type: object
+      description: Итог операции
+      properties:
+        status:
+          type: string
+          description: Код итога
+          example: SUCCESS
+    TentativeConflictField:
+      type: object
+      description: "Поле, где входящее значение непустое и отличается от текущего"
+      properties:
+        currentSource:
+          type: string
+          description: Источник текущего значения
+        currentTrust:
+          type: integer
+          format: int32
+          description: Уровень доверия источника текущего значения
+        currentValue:
+          type: string
+          description: Текущее значение в записи
+        fieldName:
+          type: string
+          description: Поле записи
+          example: grMiddleName
+        incomingValue:
+          type: string
+          description: Значение из входящей карточки
+    TentativeCounts:
+      type: object
+      description: Размер очереди разбора
+      properties:
+        greyZone:
+          type: integer
+          format: int64
+          description: Конфликты при равном доверии (`GREY_ZONE_CONFLICT`)
+        total:
+          type: integer
+          format: int64
+          description: Всего записей
+        unknownSource:
+          type: integer
+          format: int64
+          description: Данные от неизвестных источников (`UNKNOWN_SOURCE`)
+    TentativeItemView:
+      type: object
+      description: Запись очереди разбора физлиц
+      properties:
+        conflicts:
+          type: array
+          description: Конфликтующие поля; для `UNKNOWN_SOURCE` пусто
+          items:
+            $ref: "#/components/schemas/TentativeConflictField"
+        createdAt:
+          type: string
+          format: date-time
+          description: Когда запись попала в очередь
+        grClientId:
+          type: string
+          description: "Золотая запись, с которой конфликт; `null` для `UNKNOWN_SOURCE`"
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор записи очереди
+        personName:
+          type: string
+          description: ФИО из карточки
+        reason:
+          type: string
+          description: Причина
+          enum:
+          - UNKNOWN_SOURCE
+          - GREY_ZONE_CONFLICT
+        snapshot:
+          type: object
+          additionalProperties:
+            type: string
+          description: Все непустые поля входящей карточки
+        sourceName:
+          type: string
+          description: Код источника входящей карточки
+        sourceTrust:
+          type: integer
+          format: int32
+          description: "Уровень доверия источника в ядре; `null`, если источника нет"
+    TentativeLegalItemView:
+      type: object
+      description: Запись очереди разбора юрлиц
+      properties:
+        conflicts:
+          type: array
+          description: Конфликтующие поля; для `UNKNOWN_SOURCE` пусто
+          items:
+            $ref: "#/components/schemas/TentativeConflictField"
+        createdAt:
+          type: string
+          format: date-time
+          description: Когда запись попала в очередь
+        grLegalEntityId:
+          type: string
+          description: "Запись юрлица, с которой конфликт; `null`, если её нет"
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор записи очереди
+        inn:
+          type: string
+          description: ИНН из карточки
+        merchantName:
+          type: string
+          description: Название мерчанта из карточки
+        reason:
+          type: string
+          description: Причина
+          enum:
+          - UNKNOWN_SOURCE
+          - GREY_ZONE_CONFLICT
+        snapshot:
+          type: object
+          additionalProperties:
+            type: string
+          description: Все непустые поля входящей карточки
+        sourceName:
+          type: string
+          description: Код источника входящей карточки
+        sourceTrust:
+          type: integer
+          format: int32
+          description: "Уровень доверия источника в ядре; `null`, если источника нет"
+    UpdateExternalIdWithOldRequest:
+      type: object
+      description: Замена внешнего идентификатора по прежнему значению
+      properties:
+        newExternalId:
+          type: string
+          description: Новый идентификатор
+          example: CL-990001
+          minLength: 1
+        oldExternalId:
+          type: string
+          description: Прежний идентификатор клиента в источнике
+          example: CL-778812
+          minLength: 1
+        source:
+          type: string
+          description: Код источника
+          example: bank-1
+          minLength: 1
+      required:
+      - newExternalId
+      - oldExternalId
+      - source

@@ -1,0 +1,892 @@
+openapi: 3.1.0
+info:
+  description: |-
+    Приём и трансформация данных Eidos CDI: сохраняет сырьё источника, приводит его к контракту Золотой записи по дата-контракту источника и передаёт в eidos-core. Здесь же — реестр источников и их дата-контрактов.
+
+    Приём (`/api/v1/client-data`, `/api/v1/legal-data`) вызывает только eidos-gateway: путь не проверяет, кто прислал данные, и наружу не публикуется. Административные пути `/internal/**` закрыты заголовком `X-Admin-Token`.
+
+    Ошибки — `{"detail": "…"}`.
+  license:
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  title: eidos-stage
+  version: v1
+servers:
+- url: /
+  description: "Адрес, с которого получена спецификация"
+- url: http://localhost:8081
+  description: "Стенд Docker Compose, с хоста"
+- url: http://eidos-stage:8081
+  description: Внутри сети Docker Compose
+tags:
+- description: "Карточки от eidos-gateway: сырьё сохраняется в MongoDB, приводится к контракту Золотой записи и уходит в eidos-core. Тип сущности задаётся путём"
+  name: Приём данных
+- description: Проба живости для оркестратора и мониторинга
+  name: Служебные
+- description: "Поля Золотой записи, доступные как цель правил контракта"
+  name: Каталог полей
+- description: Принятые и отклонённые сообщения по источникам
+  name: Статистика приёма
+- description: "Реестр систем-источников: коды, токены доступа и уровни доверия"
+  name: Источники
+- description: "Как поля источника превращаются в поля Золотой записи: по контракту на пару «источник + тип сущности». Любое изменение увеличивает версию контракта"
+  name: Дата-контракты
+paths:
+  /api/v1/client-data:
+    post:
+      description: "Сохраняет сырьё в MongoDB, находит дата-контракт источника для физлиц, приводит поля к контракту Золотой записи, проверяет обязательность и форматы и передаёт карточку в eidos-core."
+      operationId: ingestClientData
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestMessage"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: "Карточка обработана ядром: `{\"status\":\"SUCCESS\"}`"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Тело не разобрано: `Malformed request body`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет `source` или `data`, нет дата-контракта источника для физлиц, не удалось сохранить сырьё или привести поля, карточка не прошла проверку или её отклонило ядро; в `detail` — причина"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Непредвиденный сбой: `Internal error`"
+      summary: Принять карточку физлица
+      tags:
+      - Приём данных
+  /api/v1/legal-data:
+    post:
+      description: "Как приём карточки физлица, но по дата-контракту источника для юрлиц (`LEGAL_ENTITY`) и в Золотую запись юрлица."
+      operationId: ingestLegalData
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestMessage"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: "Карточка обработана ядром: `{\"status\":\"SUCCESS\"}`"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Тело не разобрано: `Malformed request body`"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет `source` или `data`, нет дата-контракта источника для юрлиц, не удалось сохранить сырьё или привести поля, карточка не прошла проверку или её отклонило ядро; в `detail` — причина"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Непредвиденный сбой: `Internal error`"
+      summary: Принять карточку юрлица
+      tags:
+      - Приём данных
+  /health:
+    get:
+      description: Без аутентификации.
+      operationId: health
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                status: ok
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+          description: Сервис работает
+      summary: Проба живости
+      tags:
+      - Служебные
+  /internal/api/v1/golden-record-fields:
+    get:
+      operationId: listGoldenRecordFields
+      parameters:
+      - description: "Тип сущности: `PERSON` — физлица, `LEGAL_ENTITY` — юрлица"
+        in: query
+        name: entityType
+        required: false
+        schema:
+          type: string
+          default: PERSON
+          enum:
+          - PERSON
+          - LEGAL_ENTITY
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GoldenRecordFieldView"
+          description: "Поля с типом, обязательностью и форматом"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+      security:
+      - X-Admin-Token: []
+      summary: Поля Золотой записи для типа сущности
+      tags:
+      - Каталог полей
+  /internal/api/v1/ingest-stats:
+    get:
+      description: "Отклонённые — карточки, которые не прошли проверку контракта на eidos-gateway (шлюз пишет в ту же таблицу), и отклонённые здесь: нет контракта, не удалось привести поля, не прошла проверка или отказало ядро."
+      operationId: getIngestStats
+      parameters:
+      - description: "За сколько последних суток, включая текущие; меньше 1 считается как 1"
+        in: query
+        name: days
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IngestStatView"
+          description: Принято и отклонено по источникам
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+      security:
+      - X-Admin-Token: []
+      summary: Статистика приёма по источникам
+      tags:
+      - Статистика приёма
+  /internal/api/v1/sources:
+    get:
+      description: Вместе с токенами доступа.
+      operationId: listSources
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SourceView"
+          description: Источники
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+      security:
+      - X-Admin-Token: []
+      summary: Все источники
+      tags:
+      - Источники
+    post:
+      operationId: createSource
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceView"
+          description: Созданный источник
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Код или токен заняты (`Source code '<код>' already exists`, `Token already in use`) или не заполнено обязательное поле: `<поле>: <сообщение>`"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+      security:
+      - X-Admin-Token: []
+      summary: Завести источник
+      tags:
+      - Источники
+  /internal/api/v1/sources/{id}:
+    delete:
+      operationId: deleteSource
+      parameters:
+      - description: Идентификатор источника
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: Источник удалён
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Источника нет: `Source <id> not found`"
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "У источника есть дата-контракт: такой источник удалить нельзя"
+      security:
+      - X-Admin-Token: []
+      summary: Удалить источник
+      tags:
+      - Источники
+    get:
+      operationId: getSource
+      parameters:
+      - description: Идентификатор источника
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceView"
+          description: Источник
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Источника нет: `Source <id> not found`"
+      security:
+      - X-Admin-Token: []
+      summary: Источник
+      tags:
+      - Источники
+    put:
+      description: "Обязательные поля передаются заново; если `enabled` не передан, признак не меняется."
+      operationId: updateSource
+      parameters:
+      - description: Идентификатор источника
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceView"
+          description: Источник после изменения
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Код или токен заняты другим источником или не заполнено обязательное поле
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Источника нет: `Source <id> not found`"
+      security:
+      - X-Admin-Token: []
+      summary: Изменить источник
+      tags:
+      - Источники
+  /internal/api/v1/sources/{sourceId}/contract:
+    get:
+      operationId: getContract
+      parameters:
+      - description: Идентификатор источника
+        in: path
+        name: sourceId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: "Тип сущности контракта: `PERSON` — физлица, `LEGAL_ENTITY` — юрлица"
+        in: query
+        name: entityType
+        required: false
+        schema:
+          type: string
+          default: PERSON
+          enum:
+          - PERSON
+          - LEGAL_ENTITY
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContractView"
+          description: Контракт с правилами полей
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Контракта нет: `No <тип> contract for source <id>`"
+      security:
+      - X-Admin-Token: []
+      summary: Дата-контракт источника
+      tags:
+      - Дата-контракты
+    put:
+      description: "Создаёт контракт, если его нет, и задаёт поле-идентификатор клиента. Правила полей не меняет."
+      operationId: saveContractMeta
+      parameters:
+      - description: Идентификатор источника
+        in: path
+        name: sourceId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: "Тип сущности контракта: `PERSON` — физлица, `LEGAL_ENTITY` — юрлица"
+        in: query
+        name: entityType
+        required: false
+        schema:
+          type: string
+          default: PERSON
+          enum:
+          - PERSON
+          - LEGAL_ENTITY
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContractMetaRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContractView"
+          description: Контракт целиком
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Источника нет: `Source <id> not found`"
+      security:
+      - X-Admin-Token: []
+      summary: Создать контракт или задать поле-идентификатор
+      tags:
+      - Дата-контракты
+  /internal/api/v1/sources/{sourceId}/contract/fields:
+    post:
+      description: "Создаёт контракт, если его нет."
+      operationId: addContractField
+      parameters:
+      - description: Идентификатор источника
+        in: path
+        name: sourceId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: "Тип сущности контракта: `PERSON` — физлица, `LEGAL_ENTITY` — юрлица"
+        in: query
+        name: entityType
+        required: false
+        schema:
+          type: string
+          default: PERSON
+          enum:
+          - PERSON
+          - LEGAL_ENTITY
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FieldRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldView"
+          description: Правило с присвоенным `id`
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Целевого поля нет в Золотой записи этого типа (`Unknown Golden Record field for <тип>: <поле>`) или не заполнено обязательное поле правила"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Источника нет: `Source <id> not found`"
+      security:
+      - X-Admin-Token: []
+      summary: Добавить правило поля
+      tags:
+      - Дата-контракты
+  /internal/api/v1/sources/{sourceId}/contract/fields/{fieldId}:
+    delete:
+      operationId: deleteContractField
+      parameters:
+      - description: "Идентификатор источника; правило находится по `fieldId`, принадлежность источнику не проверяется"
+        in: path
+        name: sourceId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: Идентификатор правила
+        in: path
+        name: fieldId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: Правило удалено
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Правила нет: `Field <id> not found`"
+      security:
+      - X-Admin-Token: []
+      summary: Удалить правило поля
+      tags:
+      - Дата-контракты
+    put:
+      description: Заменяет правило целиком; тело — как при добавлении.
+      operationId: updateContractField
+      parameters:
+      - description: "Идентификатор источника; правило находится по `fieldId`, принадлежность источнику не проверяется"
+        in: path
+        name: sourceId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: Идентификатор правила
+        in: path
+        name: fieldId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FieldRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldView"
+          description: Правило после изменения
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Целевого поля нет в Золотой записи этого типа или не заполнено обязательное поле правила
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Нет заголовка `X-Admin-Token` или токен неверный: `Missing or invalid X-Admin-Token`"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Правила нет: `Field <id> not found`"
+      security:
+      - X-Admin-Token: []
+      summary: Заменить правило поля
+      tags:
+      - Дата-контракты
+components:
+  schemas:
+    ContractMetaRequest:
+      type: object
+      description: Мета-информация контракта
+      properties:
+        clientIdentifierField:
+          type: string
+          description: Поле данных источника с идентификатором клиента
+          example: client_id
+    ContractView:
+      type: object
+      description: Дата-контракт источника для одного типа сущности
+      properties:
+        clientIdentifierField:
+          type: string
+          description: Поле данных источника с идентификатором клиента
+          example: client_id
+        fields:
+          type: array
+          description: Правила полей
+          items:
+            $ref: "#/components/schemas/FieldView"
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор контракта
+        sourceCode:
+          type: string
+          description: Код источника
+          example: bank-1
+        sourceId:
+          type: integer
+          format: int64
+          description: Идентификатор источника
+        version:
+          type: integer
+          format: int32
+          description: "Версия: растёт при каждом изменении контракта или его правил"
+    ErrorResponse:
+      type: object
+      description: "Ошибка: единая форма ответа сервисов Eidos CDI"
+      properties:
+        detail:
+          type: string
+          description: Что пошло не так
+      required:
+      - detail
+    FieldRequest:
+      type: object
+      description: "Правило поля: как поле источника превращается в поле Золотой записи"
+      properties:
+        dataType:
+          type: string
+          description: "Логический тип: как значение приводится и проверяется"
+          enum:
+          - STRING
+          - DATE
+          - INTEGER
+          - BOOLEAN
+          - GENDER
+          - ARRAY
+          - STRUCT
+        defaultValue:
+          type: string
+          description: "Значение, если поле не пришло"
+        ordering:
+          type: integer
+          format: int32
+          description: Порядок в конструкторе; по умолчанию 0
+        required:
+          type: boolean
+          description: Обязательно ли поле; по умолчанию `false`
+        sourceDateFormat:
+          type: string
+          description: Шаблон даты в данных источника
+          example: dd.MM.yyyy
+        sourceFieldName:
+          type: string
+          description: Путь к полю в данных источника
+          example: person.birth_date
+          minLength: 1
+        targetGrField:
+          type: string
+          description: Поле Золотой записи (`GR_…`)
+          example: GR_BirthDate
+          minLength: 1
+        validationRegex:
+          type: string
+          description: Регулярное выражение для проверки значения
+        valueMap:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Таблица значений `{\"значение источника\": \"значение записи\"}`, например для пола"
+      required:
+      - dataType
+      - sourceFieldName
+      - targetGrField
+    FieldView:
+      type: object
+      description: Правило поля
+      properties:
+        dataType:
+          type: string
+          description: "Логический тип: как значение приводится и проверяется"
+          enum:
+          - STRING
+          - DATE
+          - INTEGER
+          - BOOLEAN
+          - GENDER
+          - ARRAY
+          - STRUCT
+        defaultValue:
+          type: string
+          description: "Значение, если поле не пришло"
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор правила
+        ordering:
+          type: integer
+          format: int32
+          description: Порядок в конструкторе
+        required:
+          type: boolean
+          description: Обязательно ли поле
+        sourceDateFormat:
+          type: string
+          description: Шаблон даты в данных источника
+          example: dd.MM.yyyy
+        sourceFieldName:
+          type: string
+          description: Путь к полю в данных источника
+          example: person.birth_date
+        targetGrField:
+          type: string
+          description: Поле Золотой записи (`GR_…`)
+          example: GR_BirthDate
+        validationRegex:
+          type: string
+          description: Регулярное выражение для проверки значения
+        valueMap:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Таблица значений `{\"значение источника\": \"значение записи\"}`, например для пола"
+    GoldenRecordFieldView:
+      type: object
+      description: Поле Золотой записи
+      properties:
+        javaName:
+          type: string
+          description: Имя в записи ядра
+          example: grPinfl
+        jsonName:
+          type: string
+          description: Имя в контракте
+          example: GR_Pinfl
+        pattern:
+          type: string
+          description: "Формат значения — регулярное выражение; `null`, если формат не задан"
+          example: "^\\d{14}$"
+        required:
+          type: boolean
+          description: Обязательно ли поле в контракте
+        type:
+          type: string
+          description: Логический тип поля
+          enum:
+          - STRING
+          - DATE
+          - GENDER
+          - BOOLEAN
+          - INTEGER
+          - DECIMAL
+          - STRING_ARRAY
+          - STRUCT_ARRAY
+    IngestMessage:
+      type: object
+      description: Карточка источника
+      properties:
+        data:
+          type: object
+          description: Карточка в формате источника; сохраняется как есть и приводится к контракту Золотой записи по дата-контракту источника
+        source:
+          type: string
+          description: Код источника; eidos-gateway подставляет его из токена
+          example: bank-1
+      required:
+      - data
+      - source
+    IngestStatView:
+      type: object
+      description: Активность источника за период
+      properties:
+        accepted:
+          type: integer
+          format: int64
+          description: Принято сообщений
+        rejected:
+          type: integer
+          format: int64
+          description: Отклонено сообщений
+        sourceCode:
+          type: string
+          description: Код источника
+          example: bank-1
+    SourceRequest:
+      type: object
+      description: "Источник: создание или изменение"
+      properties:
+        code:
+          type: string
+          description: Уникальный код источника
+          example: bank-1
+          minLength: 1
+        enabled:
+          type: boolean
+          description: "Включён ли источник; при создании по умолчанию `true`, при изменении без поля — не меняется"
+        name:
+          type: string
+          description: Название
+          example: Банк — АБС
+          minLength: 1
+        token:
+          type: string
+          description: Уникальный токен доступа — значение заголовка `X-Access-Token` на шлюзе
+          minLength: 1
+        trustLevel:
+          type: integer
+          format: int32
+          description: "Уровень доверия: при слиянии побеждает больший"
+          example: 8
+      required:
+      - code
+      - name
+      - token
+      - trustLevel
+    SourceView:
+      type: object
+      description: Источник
+      properties:
+        code:
+          type: string
+          description: Код источника
+          example: bank-1
+        enabled:
+          type: boolean
+          description: Включён ли источник
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор в реестре
+        name:
+          type: string
+          description: Название
+        token:
+          type: string
+          description: Токен доступа — значение заголовка `X-Access-Token` на шлюзе
+        trustLevel:
+          type: integer
+          format: int32
+          description: "Уровень доверия: при слиянии побеждает больший"
+    StatusResponse:
+      type: object
+      description: Итог операции
+      properties:
+        status:
+          type: string
+          description: Код итога
+          example: SUCCESS
+  securitySchemes:
+    X-Admin-Token:
+      description: Административный токен из настройки `eidos.stage.admin-token`
+      in: header
+      name: X-Admin-Token
+      type: apiKey

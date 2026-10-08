@@ -1,0 +1,219 @@
+site_name: Eidos CDI
+site_description: >-
+  Документация модуля Customer Data Integration платформы Eidos: приём данных
+  из систем-источников, сопоставление и слияние в Золотую запись, согласия,
+  консоли, развёртывание и справочник API.
+site_author: LLC SOLANOTECH
+copyright: >-
+  © 2026 LLC SOLANOTECH · исходный код и документация распространяются под
+  Apache License 2.0 · «Eidos» — товарный знак LLC SOLANOTECH
+
+repo_url: https://github.com/SolanoTech/eidos-infrastructure
+repo_name: SolanoTech/eidos-infrastructure
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+# Материалы проектирования (CJM, макеты, модель ArchiMate) лежат рядом, но
+# в сайт не входят: они описывают замысел, а не то, как продукт работает.
+exclude_docs: |
+  cjm.md
+  cjm-slide.html
+  ui-mockup.html
+  ui-app-mockup.html
+  eidos-cdp-archimate.xml
+  requirements.txt
+  reference/_generated/
+
+theme:
+  name: material
+  language: ru
+  icon:
+    logo: material/account-convert-outline
+    repo: fontawesome/brands/github
+  favicon: assets/favicon.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Тёмная тема
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Светлая тема
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+plugins:
+  - search:
+      lang:
+        - ru
+        - en
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+      # Якоря из кириллических заголовков: стандартный slugify их отбрасывает.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: relative_to_docs
+    unrecognized_links: warn
+
+nav:
+  - Начало работы:
+      - index.md
+      - Введение:
+          - Что такое Eidos CDI: intro/what-is-eidos-cdi.md
+          - Возможности: intro/features.md
+          - Архитектура: intro/architecture.md
+          - Глоссарий: intro/glossary.md
+          - Статус и ограничения: intro/status.md
+      - Быстрый старт:
+          - Поднять стенд: quickstart/stand.md
+          - Первая Золотая запись: quickstart/first-golden-record.md
+          - Слияние и конфликт: quickstart/merge-and-conflict.md
+  - Концепции:
+      - Модель данных: concepts/data-model.md
+      - Источники, доверие и контракты: concepts/sources-and-contracts.md
+      - Путь карточки через платформу: concepts/ingestion.md
+      - Сопоставление: concepts/matching.md
+      - Слияние и происхождение: concepts/merge.md
+      - Незавершённые записи и конфликты: concepts/conflicts.md
+      - Согласия: concepts/consents.md
+      - Защита персональных данных: concepts/data-protection.md
+      - Модель доступа: concepts/access-model.md
+  - Интеграция:
+      - Подключение источников:
+          - Порядок подключения: sources/onboarding.md
+          - Регистрация источника: sources/registration.md
+          - Дата-контракт: sources/data-contract.md
+          - Передача по REST: sources/rest.md
+          - Передача через Kafka: sources/kafka.md
+          - Первичная загрузка и поток изменений: sources/initial-load.md
+          - Ошибки, повторы, идемпотентность: sources/errors.md
+          - Передача согласий: sources/consents.md
+          - Проверка перед запуском: sources/go-live.md
+      - Получение данных:
+          - Поиск Золотой записи: consumers/search.md
+          - Внешние идентификаторы: consumers/external-ids.md
+          - Проверка согласия: consumers/consent-check.md
+          - События о согласиях: consumers/consent-events.md
+  - Консоли:
+      - Вход, роли, навигация: console/login.md
+      - Администратор источников:
+          - Источники и уровни доверия: console/sources.md
+          - Конструктор контракта: console/contract-builder.md
+          - Kafka шлюза: console/kafka.md
+          - Дашборд и качество данных: console/dashboard.md
+      - Дата-стюард:
+          - Поиск и карточка клиента: console/person-search.md
+          - Поиск и карточка юрлица: console/legal-search.md
+          - Очередь конфликтов: console/conflicts.md
+          - Аудит-лог: console/audit.md
+      - Оператор фронт-офиса:
+          - Фронт-офис: console/front-office.md
+  - Эксплуатация:
+      - Развёртывание и эксплуатация:
+          - Требования: operations/requirements.md
+          - Стенд и продуктив: operations/production.md
+          - Установка через Docker Compose: operations/install.md
+          - Keycloak: operations/keycloak.md
+          - Gravitee APIM: operations/gravitee.md
+          - OpenBao: operations/openbao.md
+          - Базы данных и миграции: operations/databases.md
+          - Конфигурация и секреты: operations/configuration.md
+          - Настройка через API: operations/automation.md
+          - Обновление версии: operations/upgrade.md
+          - Резервное копирование: operations/backup.md
+          - Мониторинг и диагностика: operations/monitoring.md
+          - Производительность: operations/performance.md
+          - Устранение неполадок: operations/troubleshooting.md
+      - Безопасность:
+          - Периметр и угрозы: security/perimeter.md
+          - Персональные данные: security/personal-data.md
+          - Чек-лист перед продуктивом: security/hardening.md
+          - Сообщить об уязвимости: security/vulnerabilities.md
+  - Справочник:
+      - API:
+          - Внешний API: reference/api/external.md
+          - eidos-core: reference/api/core.md
+          - eidos-stage: reference/api/stage.md
+          - eidos-gateway (администрирование): reference/api/gateway-admin.md
+          - eidos-consents: reference/api/consents.md
+          - eidos-cdi-ui-backend: reference/api/ui-backend.md
+      - Поля Золотой записи физлица: reference/fields-person.md
+      - Поля Золотой записи юрлица: reference/fields-legal.md
+      - Формат дата-контракта: reference/contract-format.md
+      - Сообщения и события Kafka: reference/kafka-messages.md
+      - Параметры конфигурации: reference/configuration.md
+      - Коды ответов и ошибки: reference/errors.md
+      - Перечисления: reference/enums.md
+      - Порты и сетевые взаимодействия: reference/ports.md
+      - Совместимость версий: reference/compatibility.md
+  - Разработка:
+      - Репозитории: development/repositories.md
+      - Сборка и тесты: development/build.md
+      - Расширение платформы: development/extending.md
+      - Архитектурные решения: development/decisions.md
+      - Как внести вклад: development/contributing.md
+      - Выпуски: releases.md
+      - Лицензия и товарный знак: legal.md

@@ -1,0 +1,36 @@
+/*
+ * Copyright 2026 LLC SOLANOTECH
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.solano.eidoscdiuibackend.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestClient;
+
+/**
+ * HTTP-клиент к internal API eidos-core (поиск Golden Record). Internal-эндпоинты
+ * core открыты внутри кластера, поэтому токен не требуется. Бин назван
+ * {@code coreRestClient} — инжектируется по имени параметра.
+ */
+@Configuration
+public class CoreClientConfig {
+
+    @Bean
+    public RestClient coreRestClient(@Value("${eidos.core.base-url}") String baseUrl) {
+        return RestClient.builder().baseUrl(baseUrl).build();
+    }
+}

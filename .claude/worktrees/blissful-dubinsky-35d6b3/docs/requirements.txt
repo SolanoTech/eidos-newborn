@@ -1,0 +1,3 @@
+# Зависимости сборки сайта документации (MkDocs Material).
+# Локально:  pip install -r docs/requirements.txt && mkdocs serve
+mkdocs-material==9.7.7

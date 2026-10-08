@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Eidos CDI — макет интерфейса</title>
+<style>
+:root {
+  --bg-page: #fbfaf7;
+  --bg-surface: #ffffff;
+  --bg-muted: #f5f4ef;
+  --text-primary: #1a1a18;
+  --text-secondary: #5f5e5a;
+  --text-tertiary: #888780;
+  --border: rgba(0, 0, 0, 0.14);
+  --accent: #185fa5;
+  --accent-bg: #e6f1fb;
+  --danger: #a32d2d;
+  --danger-bg: #fcebeb;
+  --radius: 10px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font); color: var(--text-primary); background: var(--bg-page); }
+.centered-note { display: flex; align-items: center; justify-content: center; min-height: 100vh; color: var(--text-secondary); }
+/* Buttons */
+.btn { font: inherit; font-size: 14px; padding: 8px 16px; border: 0.5px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--text-primary); cursor: pointer; }
+.btn:hover { background: var(--bg-muted); }
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn--primary:hover { background: #144f8a; }
+.login__card .btn--primary { width: 100%; }
+/* Fields */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field__label { font-size: 13px; color: var(--text-secondary); }
+.field input { font: inherit; font-size: 15px; height: 40px; padding: 0 12px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg-surface); color: var(--text-primary); }
+.field input:focus { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+/* Login */
+.login { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+.login__card { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 16px; background: var(--bg-surface); border: 0.5px solid var(--border); border-radius: 14px; padding: 32px 28px; }
+.login__brand { font-size: 13px; font-weight: 500; letter-spacing: 0.04em; color: var(--text-secondary); }
+.login__title { margin: 0; font-size: 22px; font-weight: 500; }
+.login__hint { font-size: 12px; color: var(--text-tertiary); text-align: center; }
+/* App layout */
+.layout { display: flex; min-height: 100vh; }
+.layout__body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.layout__content { flex: 1; padding: 28px 32px; }
+/* Sidebar */
+.sidebar { width: 220px; flex-shrink: 0; background: var(--bg-surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; padding: 18px 0; }
+.sidebar__brand { padding: 0 20px 18px; font-size: 14px; font-weight: 500; letter-spacing: 0.04em; color: var(--text-secondary); }
+.sidebar__nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-link { display: flex; align-items: center; gap: 11px; padding: 10px 20px; font-size: 14px; color: var(--text-secondary); text-decoration: none; cursor: pointer; }
+.nav-link:hover { background: var(--bg-muted); color: var(--text-primary); }
+.nav-link--active { color: var(--accent); font-weight: 500; box-shadow: inset 2px 0 0 var(--accent); background: var(--accent-bg); }
+/* Topbar */
+.topbar { display: flex; align-items: center; justify-content: flex-end; height: 56px; padding: 0 32px; background: var(--bg-surface); border-bottom: 0.5px solid var(--border); }
+.topbar__right { display: flex; align-items: center; gap: 16px; }
+.topbar__user { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; }
+.topbar__username { font-size: 14px; font-weight: 500; }
+.topbar__role { font-size: 12px; color: var(--text-tertiary); }
+.btn--icon { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; }
+/* Page */
+.page { max-width: 920px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.page-header__title { margin: 0; font-size: 22px; font-weight: 500; }
+.page-header__desc { margin: 6px 0 0; font-size: 14px; color: var(--text-secondary); }
+.note { font-size: 13px; color: var(--text-tertiary); }
+/* Metric cards */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.metric { background: var(--bg-muted); border-radius: var(--radius); padding: 14px 16px; }
+.metric__label { font-size: 13px; color: var(--text-secondary); }
+.metric__value { font-size: 26px; font-weight: 500; margin: 4px 0 2px; }
+.metric__hint { font-size: 12px; color: var(--text-tertiary); }
+/* Search bar */
+.search-bar { display: flex; gap: 8px; margin-bottom: 22px; max-width: 520px; }
+.search-bar input { flex: 1; font: inherit; font-size: 15px; height: 40px; padding: 0 12px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg-surface); color: var(--text-primary); }
+.search-bar input:focus { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+/* Empty state */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; padding: 56px 24px; border: 0.5px dashed var(--border); border-radius: var(--radius); color: var(--text-secondary); }
+.empty-state__icon { color: var(--text-tertiary); margin-bottom: 4px; }
+.empty-state__title { font-size: 15px; font-weight: 500; color: var(--text-primary); }
+.empty-state__hint { font-size: 13px; color: var(--text-tertiary); }
+/* Table */
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table thead th { text-align: left; font-weight: 400; color: var(--text-secondary); padding: 9px 8px; border-bottom: 0.5px solid var(--border); }
+.table tbody td { padding: 11px 8px; border-bottom: 0.5px solid var(--border); }
+.table .muted { color: var(--text-tertiary); }
+.table__actions { display: flex; gap: 6px; justify-content: flex-end; }
+/* Badges / status */
+.badge { font-size: 12px; padding: 2px 9px; border-radius: 6px; }
+.badge--info { background: var(--accent-bg); color: var(--accent); }
+.status--on { color: #3b6d11; }
+.status--off { color: var(--text-tertiary); }
+/* Small / danger buttons */
+.btn--sm { font-size: 13px; padding: 5px 10px; }
+.btn--danger { color: var(--danger); }
+.btn--danger:hover { background: var(--danger-bg); }
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
+.modal { width: 100%; max-width: 440px; background: var(--bg-surface); border: 0.5px solid var(--border); border-radius: 14px; padding: 20px 22px; max-height: 90vh; overflow: auto; }
+.modal__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.modal__title { margin: 0; font-size: 18px; font-weight: 500; }
+.modal__close { border: none; background: none; font-size: 22px; line-height: 1; color: var(--text-secondary); cursor: pointer; }
+/* Form */
+.form { display: flex; flex-direction: column; gap: 14px; }
+.field__row { display: flex; gap: 8px; }
+.field__row input { flex: 1; }
+.checkbox { display: flex; align-items: center; gap: 9px; font-size: 14px; }
+.checkbox input { width: auto; height: auto; }
+.form__error { font-size: 13px; color: var(--danger); background: var(--danger-bg); border-radius: var(--radius); padding: 8px 12px; }
+.form__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+/* Select */
+.field select { font: inherit; font-size: 15px; height: 40px; padding: 0 10px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg-surface); color: var(--text-primary); }
+.field select:focus { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+/* Constructor */
+.contract-meta { display: flex; align-items: flex-end; gap: 10px; background: var(--bg-muted); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; max-width: 520px; }
+.contract-meta .field { flex: 1; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.section-head__title { font-size: 15px; font-weight: 500; }
+.field-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 11px 14px; font-size: 14px; }
+.field-row + .field-row { margin-top: 8px; }
+.field-row__arrow { color: var(--text-tertiary); }
+.field-row__target { color: var(--accent); min-width: 160px; }
+.field-row__meta { font-size: 12px; color: var(--text-tertiary); }
+.field-row__actions { margin-left: auto; display: flex; gap: 6px; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; background: var(--bg-muted); color: var(--text-secondary); }
+.chip--req { background: #faeeda; color: #854f0b; }
+.form__ok { font-size: 13px; color: #3b6d11; background: #eaf3de; border-radius: var(--radius); padding: 8px 12px; }
+.pager { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.pager__info { font-size: 13px; color: var(--text-secondary); }
+.row-link { cursor: pointer; }
+.row-link:hover td { background: var(--bg-muted); }
+.link-back { border: none; background: none; color: var(--accent); font: inherit; font-size: 14px; cursor: pointer; padding: 0; margin-bottom: 16px; }
+.card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 500; }
+.card-head__name { font-size: 17px; font-weight: 500; }
+.card-head__sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.card-fields td:first-child { width: 240px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="modal"></div>
+
+<script>
+// ===== Иконки (инлайн SVG, как в React-приложении) =====
+const ICONS = {
+  dashboard: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+  database: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/>',
+  sliders: '<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/>',
+  stack: '<path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/>',
+  alert: '<path d="M12 4 2 20h20L12 4Z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/>',
+  id: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M5 17c0-2 2-3 4-3s4 1 4 3"/><line x1="15" y1="10" x2="18" y2="10"/><line x1="15" y1="14" x2="18" y2="14"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>'
+};
+function icon(name, size = 18) {
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+}
+
+// ===== Мок-данные =====
+const ROLE_LABELS = { admin: 'Администратор', steward: 'Дата-стюард' };
+const NAV = {
+  admin: [
+    ['dash', 'Дашборд', 'dashboard'],
+    ['sources', 'Источники', 'database'],
+    ['constructor', 'Конструктор', 'sliders'],
+    ['kafka', 'Kafka шлюза', 'stack']
+  ],
+  steward: [
+    ['sdash', 'Дашборд', 'dashboard'],
+    ['conflicts', 'Конфликты', 'alert'],
+    ['search', 'Поиск', 'search']
+  ]
+};
+const SOURCES = [
+  { id: 1, code: 'tieto', name: 'Tieto АБС', trustLevel: 9, token: 'tk_a1b2c3d4', enabled: true },
+  { id: 2, code: 'abs-core', name: 'Core Banking', trustLevel: 8, token: 'tk_e5f6g7h8', enabled: true },
+  { id: 3, code: 'scoring', name: 'Скоринг', trustLevel: 4, token: 'tk_i9j0k1l2', enabled: true },
+  { id: 4, code: 'partner-x', name: 'Партнёр X', trustLevel: 2, token: 'tk_m3n4o5p6', enabled: false }
+];
+const GR_FIELDS = ['GR_FirstName', 'GR_MiddleName', 'GR_LastName', 'GR_mobilePhoneMain', 'GR_pinfl', 'GR_BirthDate', 'GR_Gender', 'GR_docPassData', 'GR_BirthPlace', 'GR_Citizenship'];
+const FIELDS = [
+  { id: 1, src: 'phone', target: 'GR_mobilePhoneMain', type: 'STRING', required: true, regex: '^998\\d{9}$', valueMap: '' },
+  { id: 2, src: 'pnfl', target: 'GR_pinfl', type: 'STRING', required: true, regex: '\\d{14}', valueMap: '' },
+  { id: 3, src: 'birth_dt', target: 'GR_BirthDate', type: 'DATE', required: true, regex: '', valueMap: '' },
+  { id: 4, src: 'sex', target: 'GR_Gender', type: 'GENDER', required: false, regex: '', valueMap: '1→M, 2→F' },
+  { id: 5, src: 'fname', target: 'GR_FirstName', type: 'STRING', required: true, regex: '', valueMap: '' },
+  { id: 6, src: 'passport', target: 'GR_docPassData', type: 'STRING', required: false, regex: '[A-Z]{2}\\d{7}', valueMap: '' }
+];
+const RECORDS = [
+  { id: '7f3a0000-0000-0000-0000-000000000021', last: 'Каримов', first: 'Алишер', middle: 'Бахтиёрович', phone: '998901234567', pinfl: '30112900012345', birth: '1990-11-30', gender: 'M', passport: 'AB1234567', docDate: '2015-01-01', citizenship: 'UZ', birthPlace: 'Ташкент', birthCountry: 'Узбекистан', version: 14 },
+  { id: 'b22c0000-0000-0000-0000-000000000007', last: 'Юсупова', first: 'Дилноза', middle: '', phone: '998931112200', pinfl: '51203900098765', birth: '1992-03-12', gender: 'F', passport: 'CA7654321', docDate: '2016-05-10', citizenship: 'UZ', birthPlace: 'Самарканд', birthCountry: 'Узбекистан', version: 7 },
+  { id: '1d0e0000-0000-0000-0000-0000000000cc', last: 'Ортиков', first: 'Санжар', middle: 'Анварович', phone: '998977778899', pinfl: '40509910054321', birth: '1991-09-05', gender: 'M', passport: 'AD2223334', docDate: '2017-02-20', citizenship: 'UZ', birthPlace: 'Бухара', birthCountry: 'Узбекистан', version: 3 }
+];
+
+// ===== Состояние =====
+let state = { loggedIn: false, role: 'admin', username: 'admin', view: 'dash', searchQuery: '', searchDone: false, cardId: null, kafkaSaved: false };
+
+function defaultView(role) { return role === 'admin' ? 'dash' : 'sdash'; }
+
+// ===== Рендер =====
+function render() {
+  const root = document.getElementById('root');
+  if (!state.loggedIn) { root.innerHTML = loginView(); return; }
+  root.innerHTML =
+    '<div class="layout">' +
+      sidebar() +
+      '<div class="layout__body">' + topbar() + '<main class="layout__content">' + viewContent() + '</main></div>' +
+    '</div>';
+}
+
+function loginView() {
+  return '<div class="login"><form class="login__card" onsubmit="doLogin(event)">' +
+    '<div class="login__brand">EIDOS · CDI</div>' +
+    '<h1 class="login__title">Вход в систему</h1>' +
+    '<label class="field"><span class="field__label">Логин</span><input id="lg-user" value="admin" autofocus></label>' +
+    '<label class="field"><span class="field__label">Пароль</span><input type="password" value="admin"></label>' +
+    '<button type="submit" class="btn btn--primary">Войти</button>' +
+    '<div class="login__hint">Демо: войдите как <b>admin</b> или <b>steward</b></div>' +
+    '</form></div>';
+}
+
+function sidebar() {
+  const items = NAV[state.role].map(function (n) {
+    const active = n[0] === state.view ? ' nav-link--active' : '';
+    return '<div class="nav-link' + active + '" onclick="go(\'' + n[0] + '\')">' + icon(n[2]) + '<span>' + n[1] + '</span></div>';
+  }).join('');
+  return '<aside class="sidebar"><div class="sidebar__brand">EIDOS · CDI</div><nav class="sidebar__nav">' + items + '</nav></aside>';
+}
+
+function topbar() {
+  return '<header class="topbar"><div class="topbar__right">' +
+    '<div class="topbar__user"><span class="topbar__username">' + state.username + '</span><span class="topbar__role">' + ROLE_LABELS[state.role] + '</span></div>' +
+    '<button class="btn btn--icon" onclick="logout()">' + icon('logout', 16) + '<span>Выйти</span></button>' +
+    '</div></header>';
+}
+
+function header(title, desc, action) {
+  return '<div class="page-header"><div><h1 class="page-header__title">' + title + '</h1>' +
+    (desc ? '<p class="page-header__desc">' + desc + '</p>' : '') + '</div>' +
+    (action ? '<div>' + action + '</div>' : '') + '</div>';
+}
+function empty(ic, title, hint) {
+  return '<div class="empty-state"><div class="empty-state__icon">' + icon(ic, 28) + '</div>' +
+    '<div class="empty-state__title">' + title + '</div>' +
+    (hint ? '<div class="empty-state__hint">' + hint + '</div>' : '') + '</div>';
+}
+
+function viewContent() {
+  switch (state.view) {
+    case 'dash': return adminDash();
+    case 'sources': return sourcesView();
+    case 'constructor': return constructorView();
+    case 'kafka': return kafkaView();
+    case 'sdash': return stewardDash();
+    case 'conflicts': return conflictsView();
+    case 'search': return searchView();
+    case 'card': return cardView();
+    default: return '';
+  }
+}
+
+// ----- Админ: Дашборд -----
+function adminDash() {
+  const metrics = [
+    ['Golden Records', '1 284 502', 'всего в платформе'],
+    ['Источников', '4', 'подключено'],
+    ['Конфликтов', '12', 'ждут решения'],
+    ['За сутки', '8 940', 'принято записей']
+  ];
+  const rows = SOURCES.map(function (s) {
+    return '<tr><td><code>' + s.code + '</code></td><td>' + (s.enabled ? Math.round(Math.random() * 4000) : 0) + '</td>' +
+      '<td class="muted">' + (s.enabled ? Math.round(Math.random() * 40) : 0) + '</td>' +
+      '<td>' + (s.enabled ? '<span class="status--on">● активен</span>' : '<span class="status--off">○ выкл</span>') + '</td></tr>';
+  }).join('');
+  return '<div class="page">' + header('Обзор платформы', 'Состояние SCV: источники, поток данных, конфликты.') +
+    '<div class="metric-grid">' + metrics.map(metricCard).join('') + '</div>' +
+    '<div class="section-head__title" style="margin-bottom:10px;">Активность источников</div>' +
+    '<table class="table"><thead><tr><th style="width:30%;">Источник</th><th>Принято (сутки)</th><th>Отклонено валидацией</th><th style="width:18%;">Статус</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</div>';
+}
+function metricCard(m) {
+  return '<div class="metric"><div class="metric__label">' + m[0] + '</div><div class="metric__value">' + m[1] + '</div><div class="metric__hint">' + m[2] + '</div></div>';
+}
+
+// ----- Админ: Источники -----
+function sourcesView() {
+  const action = '<button class="btn btn--primary" onclick="openSourceModal()">Новый источник</button>';
+  const rows = SOURCES.map(function (s) {
+    return '<tr><td><code>' + s.code + '</code></td><td>' + s.name + '</td>' +
+      '<td><span class="badge badge--info">trust ' + s.trustLevel + '</span></td>' +
+      '<td class="muted"><code>' + s.token.slice(0, 4) + '…' + s.token.slice(-2) + '</code></td>' +
+      '<td>' + (s.enabled ? '<span class="status--on">● активен</span>' : '<span class="status--off">○ выкл</span>') + '</td>' +
+      '<td class="table__actions"><button class="btn btn--sm" onclick="openSourceModal(' + s.id + ')">Изм.</button>' +
+      '<button class="btn btn--sm btn--danger" onclick="alert(\'Демо: удаление источника\')">Удал.</button></td></tr>';
+  }).join('');
+  return '<div class="page">' + header('Реестр источников', 'Единый список систем-источников для stage, gateway и core.', action) +
+    '<table class="table"><thead><tr><th>Код</th><th>Название</th><th>Доверие</th><th>Токен</th><th>Статус</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</div>';
+}
+
+// ----- Админ: Конструктор -----
+function constructorView() {
+  const opts = SOURCES.map(function (s, i) { return '<option' + (i === 0 ? ' selected' : '') + '>' + s.code + '</option>'; }).join('');
+  const action = '<label class="field" style="min-width:160px;"><select>' + opts + '</select></label>';
+  const rows = FIELDS.map(function (f) {
+    return '<div class="field-row"><code>' + f.src + '</code><span class="field-row__arrow">→</span>' +
+      '<code class="field-row__target">' + f.target + '</code>' +
+      '<span class="chip">' + f.type + '</span>' +
+      (f.required ? '<span class="chip chip--req">required</span>' : '') +
+      (f.regex ? '<code class="field-row__meta">' + f.regex + '</code>' : '') +
+      (f.valueMap ? '<span class="field-row__meta">' + f.valueMap + '</span>' : '') +
+      '<span class="field-row__actions"><button class="btn btn--sm" onclick="openFieldModal(' + f.id + ')">Изм.</button>' +
+      '<button class="btn btn--sm btn--danger" onclick="alert(\'Демо: удаление поля\')">Удал.</button></span></div>';
+  }).join('');
+  return '<div class="page">' + header('Конструктор контракта', 'Сопоставление полей источника с полями Golden Record — без кода.', action) +
+    '<div class="contract-meta"><label class="field"><span class="field__label">Поле-идентификатор клиента в данных источника (tieto)</span>' +
+    '<input value="client_id"></label><button class="btn">Сохранить</button></div>' +
+    '<div class="section-head"><span class="section-head__title">Поля сопоставления</span><button class="btn btn--sm" onclick="openFieldModal()">+ Поле</button></div>' +
+    '<div>' + rows + '</div></div>';
+}
+
+// ----- Админ: Kafka -----
+function kafkaView() {
+  return '<div class="page">' + header('Конфигурация Kafka', 'Консьюмер шлюза. Сохранение перезапускает приём данных.') +
+    '<form class="form" style="max-width:440px;" onsubmit="saveKafka(event)">' +
+    '<label class="field"><span class="field__label">Bootstrap servers</span><input value="kafka-1:9092,kafka-2:9092"></label>' +
+    '<label class="field"><span class="field__label">Топик</span><input value="client-data"></label>' +
+    '<label class="field"><span class="field__label">Consumer group</span><input value="eidos-gateway"></label>' +
+    '<label class="checkbox"><input type="checkbox" checked><span>Консьюмер включён</span></label>' +
+    (state.kafkaSaved ? '<div class="form__ok">Конфигурация сохранена, консьюмер перезапущен.</div>' : '') +
+    '<div class="form__actions"><button type="submit" class="btn btn--primary">Сохранить и перезапустить</button></div>' +
+    '</form></div>';
+}
+
+// ----- Стюард: Дашборд -----
+function stewardDash() {
+  const metrics = [['В очереди', '12', 'спорных записей'], ['Grey-zone', '7', 'равное доверие'], ['Unknown source', '5', 'нет в реестре']];
+  return '<div class="page">' + header('Обзор стюарда', 'Очередь разрешения и качество данных.') +
+    '<div class="metric-grid">' + metrics.map(metricCard).join('') + '</div>' +
+    '<div class="section-head__title" style="margin-bottom:10px;">Свежие конфликты</div>' +
+    '<table class="table"><thead><tr><th>Клиент</th><th>Тип</th><th style="width:20%;">Возраст</th></tr></thead><tbody>' +
+    '<tr class="row-link" onclick="go(\'conflicts\')"><td>Юсупов Ж.</td><td><span class="chip chip--req">grey-zone</span></td><td class="muted">2 ч</td></tr>' +
+    '<tr class="row-link" onclick="go(\'conflicts\')"><td>Ортиков С.</td><td><span class="badge badge--info">unknown source</span></td><td class="muted">5 ч</td></tr>' +
+    '</tbody></table></div>';
+}
+
+// ----- Стюард: Конфликты (заглушка, как в текущем React) -----
+function conflictsView() {
+  return '<div class="page">' + header('Очередь конфликтов', 'Спорные записи: неизвестный источник или равное доверие + расхождение.') +
+    empty('alert', 'Конфликтов нет', 'Сюда попадут спорные записи для разрешения.') + '</div>';
+}
+
+// ----- Стюард: Поиск -----
+function searchView() {
+  const q = state.searchQuery.trim().toLowerCase();
+  const results = state.searchDone
+    ? RECORDS.filter(function (r) { return !q || (r.last + ' ' + r.first + ' ' + r.pinfl + ' ' + r.passport).toLowerCase().includes(q); })
+    : null;
+  let body;
+  if (results === null) {
+    body = empty('search', 'Введите запрос', 'Результаты появятся здесь.');
+  } else if (results.length === 0) {
+    body = empty('search', 'Ничего не найдено', 'Уточните запрос или проверьте, что профили загружены.');
+  } else {
+    const rows = results.map(function (r) {
+      const fio = [r.last, r.first, r.middle].filter(Boolean).join(' ');
+      return '<tr class="row-link" onclick="openCard(\'' + r.id + '\')">' +
+        '<td class="muted"><code>' + r.id.slice(0, 8) + '…</code></td><td>' + fio + '</td>' +
+        '<td>' + r.phone + '</td><td><code>' + r.pinfl + '</code></td><td>' + r.birth + '</td></tr>';
+    }).join('');
+    body = '<div class="note" style="margin-bottom:12px;">Найдено: ' + results.length + '</div>' +
+      '<table class="table"><thead><tr><th>gr_client_id</th><th>ФИО</th><th>Телефон</th><th>ПИНФЛ</th><th>Дата рождения</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  return '<div class="page">' + header('Поиск Golden Records', 'По фамилии, имени, паспорту или ПИНФЛ.') +
+    '<form class="search-bar" onsubmit="doSearch(event)">' +
+    '<input id="sq" placeholder="фамилия, имя, паспорт или ПИНФЛ" value="' + state.searchQuery + '">' +
+    '<button type="submit" class="btn">Найти</button></form>' + body + '</div>';
+}
+
+// ----- Стюард: Карточка (только из поиска) -----
+function cardView() {
+  const r = RECORDS.find(function (x) { return x.id === state.cardId; });
+  if (!r) return '<div class="page">' + empty('id', 'Профиль не найден', 'Вернитесь к поиску.') + '</div>';
+  const fio = [r.last, r.first, r.middle].filter(Boolean).join(' ');
+  const init = [r.last, r.first].filter(Boolean).map(function (s) { return s.charAt(0).toUpperCase(); }).join('');
+  const gender = r.gender === 'M' ? 'Мужской' : r.gender === 'F' ? 'Женский' : '—';
+  const rows = [
+    ['Телефон', r.phone], ['ПИНФЛ', r.pinfl], ['Дата рождения', r.birth], ['Пол', gender],
+    ['Место рождения', r.birthPlace], ['Страна рождения', r.birthCountry], ['Паспорт', r.passport],
+    ['Дата выдачи документа', r.docDate], ['Гражданство', r.citizenship]
+  ].map(function (p) { return '<tr><td class="muted">' + p[0] + '</td><td>' + (p[1] || '—') + '</td></tr>'; }).join('');
+  return '<div class="page">' +
+    '<button class="link-back" onclick="go(\'search\')">← К поиску</button>' +
+    '<div class="card-head"><div class="avatar">' + init + '</div>' +
+    '<div><div class="card-head__name">' + fio + '</div>' +
+    '<div class="card-head__sub"><code>gr_client_id ' + r.id.slice(0, 8) + '…</code> · версия ' + r.version + '</div></div>' +
+    '<button class="btn btn--sm" style="margin-left:auto;" disabled title="Будет доступно в следующей фазе">История</button></div>' +
+    '<div class="section-head__title" style="margin-bottom:10px;">Поля профиля</div>' +
+    '<table class="table card-fields"><tbody>' + rows + '</tbody></table>' +
+    '<div class="section-head__title" style="margin:22px 0 10px;">Происхождение и история</div>' +
+    empty('id', 'Провенанс полей пока недоступен', 'Источник и история каждого поля появятся в следующей фазе core.') +
+    '</div>';
+}
+
+// ===== Модалки =====
+function openSourceModal(id) {
+  const s = id ? SOURCES.find(function (x) { return x.id === id; }) : null;
+  const m = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">' +
+    '<div class="modal__header"><h2 class="modal__title">' + (s ? 'Редактировать источник' : 'Новый источник') + '</h2><button class="modal__close" onclick="closeModal()">×</button></div>' +
+    '<form class="form" onsubmit="closeModal();return false;">' +
+    '<label class="field"><span class="field__label">Код</span><input value="' + (s ? s.code : '') + '" placeholder="напр. tieto"></label>' +
+    '<label class="field"><span class="field__label">Название</span><input value="' + (s ? s.name : '') + '"></label>' +
+    '<label class="field"><span class="field__label">Уровень доверия</span><input type="number" value="' + (s ? s.trustLevel : 5) + '"></label>' +
+    '<label class="field"><span class="field__label">Токен доступа</span><div class="field__row"><input value="' + (s ? s.token : '') + '" placeholder="ключ для X-Access-Token"><button type="button" class="btn">Сгенерировать</button></div></label>' +
+    '<label class="checkbox"><input type="checkbox"' + (!s || s.enabled ? ' checked' : '') + '><span>Источник активен</span></label>' +
+    '<div class="form__actions"><button type="button" class="btn" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn--primary">Сохранить</button></div>' +
+    '</form></div></div>';
+  document.getElementById('modal').innerHTML = m;
+}
+function openFieldModal(id) {
+  const f = id ? FIELDS.find(function (x) { return x.id === id; }) : null;
+  const opts = GR_FIELDS.map(function (o) { return '<option' + (f && f.target === o ? ' selected' : '') + '>' + o + '</option>'; }).join('');
+  const types = ['STRING', 'DATE', 'INTEGER', 'BOOLEAN', 'GENDER'].map(function (t) { return '<option' + (f && f.type === t ? ' selected' : '') + '>' + t + '</option>'; }).join('');
+  const m = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">' +
+    '<div class="modal__header"><h2 class="modal__title">' + (f ? 'Редактировать поле' : 'Новое поле') + '</h2><button class="modal__close" onclick="closeModal()">×</button></div>' +
+    '<form class="form" onsubmit="closeModal();return false;">' +
+    '<label class="field"><span class="field__label">Поле источника (dot-path)</span><input value="' + (f ? f.src : '') + '" placeholder="напр. person.phone"></label>' +
+    '<label class="field"><span class="field__label">Целевое поле Golden Record</span><select>' + opts + '</select></label>' +
+    '<div class="field__row"><label class="field" style="flex:1;"><span class="field__label">Тип</span><select>' + types + '</select></label>' +
+    '<label class="field" style="flex:1;"><span class="field__label">Формат даты</span><input placeholder="dd.MM.yyyy"></label></div>' +
+    '<label class="field"><span class="field__label">Regex валидации</span><input value="' + (f ? f.regex : '') + '" placeholder="^998\\d{9}$"></label>' +
+    '<label class="field"><span class="field__label">Value-map (напр. 1→M, 2→F)</span><input value="' + (f ? f.valueMap : '') + '"></label>' +
+    '<label class="field"><span class="field__label">Значение по умолчанию</span><input></label>' +
+    '<label class="checkbox"><input type="checkbox"' + (f && f.required ? ' checked' : '') + '><span>Обязательное поле</span></label>' +
+    '<div class="form__actions"><button type="button" class="btn" onclick="closeModal()">Отмена</button><button type="submit" class="btn btn--primary">Сохранить</button></div>' +
+    '</form></div></div>';
+  document.getElementById('modal').innerHTML = m;
+}
+function closeModal() { document.getElementById('modal').innerHTML = ''; }
+
+// ===== Действия =====
+function doLogin(e) {
+  e.preventDefault();
+  const u = (document.getElementById('lg-user').value || 'admin').trim();
+  state.username = u || 'admin';
+  state.role = u.toLowerCase().startsWith('steward') ? 'steward' : 'admin';
+  state.loggedIn = true;
+  state.view = defaultView(state.role);
+  render();
+}
+function logout() { state = { loggedIn: false, role: 'admin', username: 'admin', view: 'dash', searchQuery: '', searchDone: false, cardId: null, kafkaSaved: false }; closeModal(); render(); }
+function go(view) { state.view = view; if (view !== 'kafka') state.kafkaSaved = false; render(); }
+function doSearch(e) { e.preventDefault(); state.searchQuery = document.getElementById('sq').value; state.searchDone = true; render(); }
+function openCard(id) { state.cardId = id; state.view = 'card'; render(); }
+function saveKafka(e) { e.preventDefault(); state.kafkaSaved = true; render(); }
+
+render();
+</script>
+</body>
+</html>
