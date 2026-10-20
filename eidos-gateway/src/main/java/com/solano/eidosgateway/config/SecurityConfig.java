@@ -19,6 +19,8 @@ package com.solano.eidosgateway.config;
 import com.solano.eidosgateway.auth.TokenAuthService;
 import com.solano.eidosgateway.proxy.RouteResolver;
 import com.solano.eidosgateway.security.AdminTokenAuthFilter;
+import com.solano.eidosgateway.security.RateLimitFilter;
+import com.solano.eidosgateway.security.RateLimiter;
 import com.solano.eidosgateway.security.SourceTokenAuthFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -41,25 +43,43 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *
  * <p>Каждый фильтр действует только на своей области путей, на прочих —
  * прозрачно пропускает запрос.</p>
+ *
+ * <p>За авторизацией источника стоит {@link RateLimitFilter}: порядок важен,
+ * ограничитель считает запросы по источнику и поэтому должен видеть результат
+ * авторизации.</p>
  */
 @Configuration
 public class SecurityConfig {
+
+    @Bean
+    public RateLimiter rateLimiter() {
+        return new RateLimiter();
+    }
 
     @Bean
     public SecurityFilterChain filterChain(
             HttpSecurity http,
             RouteResolver routeResolver,
             TokenAuthService tokenAuthService,
-            @Value("${gateway.admin-token}") String adminToken
+            RateLimiter rateLimiter,
+            @Value("${gateway.admin-token}") String adminToken,
+            @Value("${gateway.rate-limit.enabled:true}") boolean rateLimitEnabled,
+            @Value("${gateway.rate-limit.per-minute:600}") int ratePerMinute,
+            @Value("${gateway.rate-limit.fuzzy-search-per-minute:30}") int fuzzySearchPerMinute
     ) throws Exception {
+        SourceTokenAuthFilter sourceTokenAuthFilter =
+                new SourceTokenAuthFilter(routeResolver, tokenAuthService);
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .addFilterBefore(new AdminTokenAuthFilter(adminToken),
                         UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(new SourceTokenAuthFilter(routeResolver, tokenAuthService),
+                .addFilterBefore(sourceTokenAuthFilter,
                         UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new RateLimitFilter(routeResolver, rateLimiter,
+                                rateLimitEnabled, ratePerMinute, fuzzySearchPerMinute),
+                        SourceTokenAuthFilter.class)
                 .build();
     }
 }

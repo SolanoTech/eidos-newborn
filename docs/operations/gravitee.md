@@ -26,6 +26,12 @@ Gravitee APIM — API-шлюз, через который консоли вып�
 Остальные пути консоли (`/api/v1/admin/dashboard`, `/audit`, `/consents`)
 обслуживает `eidos-cdi-ui-backend` напрямую.
 
+!!! note "Внешний API через Gravitee не идёт"
+    Приём данных от источников и выдача данных потребителям обслуживаются
+    `eidos-gateway`. Поэтому ограничение частоты внешних запросов живёт в самом
+    шлюзе (`gateway.rate-limit.*`), а не в политике Gravitee — см.
+    [Конфигурация](../reference/configuration.md#eidos-gateway).
+
 ## Стек
 
 `gravitee/docker-compose-apim.yml` поднимает:

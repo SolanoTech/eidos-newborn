@@ -70,6 +70,15 @@
 | `eidos.core.base-url` | `http://localhost:8080` | `http://eidos-core:8080` | Адрес ядра |
 | `eidos.stage.base-url` | `http://localhost:8081` | `http://eidos-stage:8081` | Адрес `eidos-stage` |
 | `eidos.consents.base-url` | `http://localhost:8082` | `http://eidos-consents:8082` | Адрес сервиса согласий |
+| `gateway.rate-limit.enabled` | `true` | `${GATEWAY_RATE_LIMIT_ENABLED}` | Ограничение частоты внешних запросов |
+| `gateway.rate-limit.per-minute` | `600` | `${GATEWAY_RATE_LIMIT_PER_MINUTE}` | Запросов в минуту на источника для внешнего API |
+| `gateway.rate-limit.fuzzy-search-per-minute` | `30` | `${GATEWAY_RATE_LIMIT_FUZZY_SEARCH_PER_MINUTE}` | Отдельный, более строгий предел для нечёткого поиска |
+
+Ограничение частоты считается по коду источника из `X-Access-Token` и хранится
+в памяти процесса: при нескольких экземплярах шлюза фактический предел
+умножается на их число. Значение `0` или отрицательное снимает ограничение для
+этой области. Нечёткий поиск расходует собственную квоту, не связанную с
+квотой остального внешнего API.
 
 Настройки потребителей Kafka хранятся в базе шлюза — см.
 [API eidos-gateway](api/gateway-admin.md).
