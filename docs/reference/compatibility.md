@@ -42,7 +42,7 @@
 | Spring Boot | 4.0.6 (`eidos-core`, `eidos-stage`, `eidos-consents`), 4.1.0 (`eidos-gateway`, `eidos-cdi-ui-backend`) | Задаётся в модулях |
 | Maven | 3.9.9 | 3.9 |
 | Node.js | 22 | 22 |
-| PostgreSQL | 16 | 16; расширение `pg_trgm` |
+| PostgreSQL | 16 | 16 |
 | MongoDB | 7 | 7 |
 | Kafka API | Redpanda 24.2.7 | Любая реализация Kafka API без обязательной аутентификации |
 | Keycloak | 26.0 | 26 |

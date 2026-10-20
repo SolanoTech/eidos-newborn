@@ -16,15 +16,12 @@
 
 package com.solano.eidoscore.entity.legal;
 
-import com.solano.eidoscore.service.legal.MerchantNameNormalizer;
 import com.solano.shared.dto.LegalEntityGoldenRecordDto.Founder;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
@@ -47,15 +44,12 @@ import java.util.List;
  * ({@link Version}, timestamps), свой идентификатор с префиксом {@code LE_}
  * и свой точный ключ — ИНН.
  *
- * <p>{@code nameNormalized} — техническая колонка под неточный поиск по
- * названию мерчанта; пересчитывается автоматически перед вставкой и
- * обновлением, в дата-контракте её нет.</p>
+ * <p>Неточный поиск по названию мерчанта обслуживает поисковый индекс
+ * (OpenSearch), поэтому технических полей под него в записи нет.</p>
  */
 @Entity
 @Table(
         name = "legal_entity_record",
-        // GIN-индекс по name_normalized создаётся отдельно (gin_trgm_ops) —
-        // см. LegalSearchIndexInitializer; обычный btree для similarity бесполезен.
         indexes = @Index(name = "ix_le_inn", columnList = "gr_inn")
 )
 @Getter
@@ -81,10 +75,6 @@ public class LegalEntityRecord {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
-    /** Нормализованное название для неточного поиска (см. {@link MerchantNameNormalizer}). */
-    @Column(name = "name_normalized", length = 512)
-    private String nameNormalized;
 
     @Column(name = "gr_inn", nullable = false, unique = true, length = 9)
     private String grInn;
@@ -267,14 +257,4 @@ public class LegalEntityRecord {
 
     @Column(name = "gr_cadastres_total")
     private Integer grCadastresTotal;
-
-    /**
-     * Держит {@code nameNormalized} в согласии с названиями: полное имя —
-     * основной источник, короткое подмешивается, чтобы поиск находил и по бренду.
-     */
-    @PrePersist
-    @PreUpdate
-    void refreshNormalizedName() {
-        this.nameNormalized = MerchantNameNormalizer.normalizeAll(grFullName, grShortName);
-    }
 }

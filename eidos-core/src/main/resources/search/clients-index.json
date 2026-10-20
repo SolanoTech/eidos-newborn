@@ -1,0 +1,162 @@
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1
+    },
+    "analysis": {
+      "char_filter": {
+        "uz_cyrillic_to_latin": {
+          "type": "mapping",
+          "mappings": [
+            "ё => yo",
+            "Ё => yo",
+            "ц => ts",
+            "Ц => ts",
+            "ч => ch",
+            "Ч => ch",
+            "ш => sh",
+            "Ш => sh",
+            "щ => sh",
+            "Щ => sh",
+            "ю => yu",
+            "Ю => yu",
+            "я => ya",
+            "Я => ya",
+            "ғ => g'",
+            "Ғ => g'",
+            "ў => o'",
+            "Ў => o'",
+            "ж => j",
+            "Ж => j",
+            "қ => q",
+            "Қ => q",
+            "ҳ => h",
+            "Ҳ => h",
+            "а => a",
+            "А => a",
+            "б => b",
+            "Б => b",
+            "в => v",
+            "В => v",
+            "г => g",
+            "Г => g",
+            "д => d",
+            "Д => d",
+            "е => e",
+            "Е => e",
+            "з => z",
+            "З => z",
+            "и => i",
+            "И => i",
+            "й => y",
+            "Й => y",
+            "к => k",
+            "К => k",
+            "л => l",
+            "Л => l",
+            "м => m",
+            "М => m",
+            "н => n",
+            "Н => n",
+            "о => o",
+            "О => o",
+            "п => p",
+            "П => p",
+            "р => r",
+            "Р => r",
+            "с => s",
+            "С => s",
+            "т => t",
+            "Т => t",
+            "у => u",
+            "У => u",
+            "ф => f",
+            "Ф => f",
+            "х => x",
+            "Х => x",
+            "ы => i",
+            "Ы => i",
+            "э => e",
+            "Э => e",
+            "ъ => ",
+            "Ъ => ",
+            "ь => ",
+            "Ь => "
+          ]
+        }
+      },
+      "analyzer": {
+        "uz_name": {
+          "type": "custom",
+          "char_filter": [
+            "uz_cyrillic_to_latin"
+          ],
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "uz_name_prefix": {
+          "type": "custom",
+          "char_filter": [
+            "uz_cyrillic_to_latin"
+          ],
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "edge_prefix"
+          ]
+        }
+      },
+      "filter": {
+        "edge_prefix": {
+          "type": "edge_ngram",
+          "min_gram": 2,
+          "max_gram": 20
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "grClientId": {
+        "type": "keyword"
+      },
+      "lastName": {
+        "type": "text",
+        "analyzer": "uz_name",
+        "fields": {
+          "prefix": {
+            "type": "text",
+            "analyzer": "uz_name_prefix",
+            "search_analyzer": "uz_name"
+          }
+        }
+      },
+      "firstName": {
+        "type": "text",
+        "analyzer": "uz_name",
+        "fields": {
+          "prefix": {
+            "type": "text",
+            "analyzer": "uz_name_prefix",
+            "search_analyzer": "uz_name"
+          }
+        }
+      },
+      "middleName": {
+        "type": "text",
+        "analyzer": "uz_name"
+      },
+      "fullName": {
+        "type": "text",
+        "analyzer": "uz_name"
+      },
+      "updatedAt": {
+        "type": "date"
+      }
+    }
+  }
+}

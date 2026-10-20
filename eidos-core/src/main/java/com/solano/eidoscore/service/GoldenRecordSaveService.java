@@ -26,6 +26,8 @@ import com.solano.eidoscore.repository.SourceRepository;
 import com.solano.eidoscore.crypto.BlindIndex;
 import com.solano.eidoscore.crypto.DepersonalizationService;
 import com.solano.shared.dto.GoldenRecordDto;
+import com.solano.eidoscore.search.RecordChanged;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +46,7 @@ public class GoldenRecordSaveService {
 
     private final GoldenRecordRepository goldenRecordRepository;
     private final BlindIndex blindIndex;
+    private final ApplicationEventPublisher eventPublisher;
     private final RecordSaveFlow<GoldenRecordDto, GoldenRecord> flow;
 
     public GoldenRecordSaveService(
@@ -54,10 +57,12 @@ public class GoldenRecordSaveService {
             GoldenRecordMerger merger,
             GoldenRecordSnapshotter snapshotter,
             BlindIndex blindIndex,
-            DepersonalizationService depersonalizationService
+            DepersonalizationService depersonalizationService,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.goldenRecordRepository = goldenRecordRepository;
         this.blindIndex = blindIndex;
+        this.eventPublisher = eventPublisher;
         this.flow = new RecordSaveFlow<>(
                 sourceRepository::findBySourceName,
                 (source, externalId) -> externalIdRepository
@@ -72,7 +77,11 @@ public class GoldenRecordSaveService {
 
     @Transactional
     public GoldenRecord execute(GoldenRecordDto dto, String sourceName, String clientSourceIdentifier) {
-        return flow.execute(dto, sourceName, clientSourceIdentifier);
+        GoldenRecord record = flow.execute(dto, sourceName, clientSourceIdentifier);
+        // Одна точка на оба пути: и создание, и слияние проходят здесь.
+        // В индекс уйдёт после коммита — см. SearchIndexListener.
+        eventPublisher.publishEvent(new RecordChanged.Client(record));
+        return record;
     }
 
     /**

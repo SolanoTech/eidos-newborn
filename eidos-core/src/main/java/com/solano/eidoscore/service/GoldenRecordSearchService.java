@@ -24,6 +24,7 @@ import com.solano.eidoscore.repository.GoldenRecordExternalIdRepository;
 import com.solano.eidoscore.repository.GoldenRecordRepository;
 import com.solano.eidoscore.crypto.BlindIndex;
 import com.solano.eidoscore.repository.SourceRepository;
+import com.solano.eidoscore.search.FuzzySearchService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +32,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.PageImpl;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import java.time.LocalDate;
 
 /**
@@ -47,17 +53,20 @@ public class GoldenRecordSearchService {
     private final GoldenRecordExternalIdRepository externalIdRepository;
     private final SourceRepository sourceRepository;
     private final BlindIndex blindIndex;
+    private final FuzzySearchService fuzzySearch;
 
     public GoldenRecordSearchService(
             GoldenRecordRepository goldenRecordRepository,
             GoldenRecordExternalIdRepository externalIdRepository,
             SourceRepository sourceRepository,
-            BlindIndex blindIndex
+            BlindIndex blindIndex,
+            FuzzySearchService fuzzySearch
     ) {
         this.goldenRecordRepository = goldenRecordRepository;
         this.externalIdRepository = externalIdRepository;
         this.sourceRepository = sourceRepository;
         this.blindIndex = blindIndex;
+        this.fuzzySearch = fuzzySearch;
     }
 
     public GoldenRecord accurateSearch(
@@ -91,13 +100,41 @@ public class GoldenRecordSearchService {
                 .orElseThrow(() -> new NotFoundException("Golden Record Not Found"));
     }
 
+    /**
+     * Нечёткий поиск клиента по имени.
+     *
+     * <p>Считает OpenSearch: кириллица и латиница сведены анализатором, опечатки
+     * прощаются. Индекс отдаёт идентификаторы, карточки дочитываются из базы, и
+     * найденный поиском порядок сохраняется — сортировка по дате создания здесь
+     * была бы потерей релевантности.</p>
+     *
+     * <p>Обезличенные клиенты не находятся: их документов в индексе нет.</p>
+     */
     public Page<GoldenRecord> search(String query, int page) {
-        Pageable pageable = PageRequest.of(
-                Math.max(page - 1, 0),
-                DEFAULT_PAGE_SIZE,
-                Sort.by(Sort.Direction.ASC, "createdAt")
-        );
-        return goldenRecordRepository.searchByPattern(query, pageable);
+        Pageable pageable = PageRequest.of(Math.max(page - 1, 0), DEFAULT_PAGE_SIZE);
+        List<FuzzySearchService.Match> matches =
+                fuzzySearch.searchClients(query, pageable.getPageSize() * (pageable.getPageNumber() + 1));
+        return hydrate(matches, pageable);
+    }
+
+    /** Достраивает найденные идентификаторы до карточек, сохраняя порядок поиска. */
+    private Page<GoldenRecord> hydrate(List<FuzzySearchService.Match> matches, Pageable pageable) {
+        int from = (int) pageable.getOffset();
+        if (from >= matches.size()) {
+            return new PageImpl<>(List.of(), pageable, matches.size());
+        }
+        List<String> ids = matches.subList(from, Math.min(from + pageable.getPageSize(), matches.size()))
+                .stream().map(FuzzySearchService.Match::id).toList();
+        Map<String, GoldenRecord> byId = goldenRecordRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(GoldenRecord::getGrClientId, r -> r));
+        return new PageImpl<>(
+                ids.stream().map(byId::get).filter(Objects::nonNull).toList(),
+                pageable, matches.size());
+    }
+
+    /** Нечёткий поиск для внешних потребителей: только идентификаторы и оценки. */
+    public List<FuzzySearchService.Match> fuzzySearchClients(String query, int limit) {
+        return fuzzySearch.searchClients(query, limit);
     }
 
     public GoldenRecord findById(String clientId) {

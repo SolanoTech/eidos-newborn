@@ -54,6 +54,7 @@ class LegalEntitySaveServiceTest {
     @Mock LegalEntityCreator creator;
     @Mock LegalEntityMerger merger;
     @Mock LegalEntitySnapshotter snapshotter;
+    @Mock org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     private LegalEntitySaveService service;
 
@@ -61,7 +62,7 @@ class LegalEntitySaveServiceTest {
     void setUp() {
         service = new LegalEntitySaveService(
                 sourceRepository, recordRepository, externalIdRepository,
-                creator, merger, snapshotter);
+                creator, merger, snapshotter, eventPublisher);
     }
 
     @Test

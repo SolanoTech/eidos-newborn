@@ -60,14 +60,13 @@ public class InternalLegalEntityController {
         return searchService.byInn(inn);
     }
 
-    /** Неточный поиск по названию мерчанта (триграммное сходство). */
+    /** Неточный поиск по названию мерчанта (поисковый индекс). */
     @GetMapping("/search/name")
     public Page<LegalEntityRecord> searchByName(
             @RequestParam String query,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(required = false) Double threshold
+            @RequestParam(defaultValue = "1") int page
     ) {
-        return searchService.searchByName(query, page, threshold);
+        return searchService.searchByName(query, page);
     }
 
     @GetMapping("/{grLegalEntityId}")

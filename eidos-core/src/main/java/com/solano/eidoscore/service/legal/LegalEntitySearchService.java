@@ -22,6 +22,7 @@ import com.solano.eidoscore.exception.NotFoundException;
 import com.solano.eidoscore.repository.legal.LegalEntityExternalIdRepository;
 import com.solano.eidoscore.repository.legal.LegalEntityFieldMetaRepository;
 import com.solano.eidoscore.repository.legal.LegalEntityRecordRepository;
+import com.solano.eidoscore.search.FuzzySearchService;
 import com.solano.eidoscore.web.dto.ExternalIdView;
 import com.solano.eidoscore.web.dto.FieldMetaView;
 import org.springframework.data.domain.Page;
@@ -33,35 +34,37 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.Map;
 
 /**
  * Поиск записей юрлиц: точный по ИНН и неточный по названию мерчанта, плюс
  * чтение карточки, провенанса полей и внешних идентификаторов.
  *
- * <p>Неточный поиск идёт по нормализованному названию через триграммное
- * сходство PostgreSQL; поисковый запрос нормализуется тем же
- * {@link MerchantNameNormalizer}, что и хранимое значение, иначе «ООО Оазис»
- * и «OAZIS» не сойдутся.</p>
+ * <p>Неточный поиск обслуживает поисковый индекс: транслитерация и отсечение
+ * организационно-правовых форм живут в анализаторе индекса, поэтому запрос
+ * уходит туда как есть — «ООО Оазис» и «OAZIS» сходятся на стороне поиска.</p>
  */
 @Service
 public class LegalEntitySearchService {
 
     private static final int DEFAULT_PAGE_SIZE = 20;
-    /** Порог сходства: ниже — слишком много случайных совпадений. */
-    private static final double DEFAULT_THRESHOLD = 0.3;
 
     private final LegalEntityRecordRepository recordRepository;
     private final LegalEntityFieldMetaRepository fieldMetaRepository;
     private final LegalEntityExternalIdRepository externalIdRepository;
+    private final FuzzySearchService fuzzySearch;
 
     public LegalEntitySearchService(
             LegalEntityRecordRepository recordRepository,
             LegalEntityFieldMetaRepository fieldMetaRepository,
-            LegalEntityExternalIdRepository externalIdRepository
+            LegalEntityExternalIdRepository externalIdRepository,
+            FuzzySearchService fuzzySearch
     ) {
         this.recordRepository = recordRepository;
         this.fieldMetaRepository = fieldMetaRepository;
         this.externalIdRepository = externalIdRepository;
+        this.fuzzySearch = fuzzySearch;
     }
 
     /** Точный поиск по ИНН — 404, если записи нет. */
@@ -74,16 +77,32 @@ public class LegalEntitySearchService {
                 .orElseThrow(() -> new NotFoundException("Legal entity with INN " + inn + " not found"));
     }
 
-    /** Неточный поиск по названию мерчанта (триграммное сходство). */
+    /** Неточный поиск по названию мерчанта (поисковый индекс). */
     @Transactional(readOnly = true)
-    public Page<LegalEntityRecord> searchByName(String query, int page, Double threshold) {
-        String normalized = MerchantNameNormalizer.normalize(query);
+    public Page<LegalEntityRecord> searchByName(String query, int page) {
         Pageable pageable = PageRequest.of(Math.max(page - 1, 0), DEFAULT_PAGE_SIZE);
-        if (normalized == null) {
-            return new PageImpl<>(List.of(), pageable, 0);
+        List<FuzzySearchService.Match> matches =
+                fuzzySearch.searchMerchants(query, pageable.getPageSize() * (pageable.getPageNumber() + 1));
+        return hydrate(matches, pageable);
+    }
+
+    /**
+     * Достраивает результаты поиска до записей.
+     *
+     * <p>Индекс отдаёт идентификаторы и оценки — сами карточки читаются из базы,
+     * и порядок, найденный поиском, сохраняется.</p>
+     */
+    private Page<LegalEntityRecord> hydrate(List<FuzzySearchService.Match> matches, Pageable pageable) {
+        int from = (int) pageable.getOffset();
+        if (from >= matches.size()) {
+            return new PageImpl<>(List.of(), pageable, matches.size());
         }
-        double limit = threshold == null ? DEFAULT_THRESHOLD : threshold;
-        return recordRepository.fuzzyByName(normalized, limit, pageable);
+        List<String> ids = matches.subList(from, Math.min(from + pageable.getPageSize(), matches.size()))
+                .stream().map(FuzzySearchService.Match::id).toList();
+        Map<String, LegalEntityRecord> byId = recordRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(LegalEntityRecord::getGrLegalEntityId, r -> r));
+        List<LegalEntityRecord> ordered = ids.stream().map(byId::get).filter(java.util.Objects::nonNull).toList();
+        return new PageImpl<>(ordered, pageable, matches.size());
     }
 
     @Transactional(readOnly = true)

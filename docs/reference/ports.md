@@ -17,6 +17,8 @@
 | Redpanda, API администрирования | `kafka` | 9644 | 9644 | Нет |
 | Keycloak | `keycloak` | 8180 | 8180 | Да, через TLS |
 | OpenBao | `openbao` | 8200 | 8200 | Нет |
+| OpenSearch | 9200 | 9200 | Нечёткий поиск, REST API кластера |
+| OpenSearch Dashboards | 5601 | 5601 | Веб-интерфейс кластера |
 | Gravitee, шлюз | `gateway` (стек APIM) | 8082 | 8082 | Нет |
 | Gravitee, Management API | `management_api` | 8083, 8072 | 8083, 8072 | Нет |
 | Gravitee, консоль управления | `management_ui` | 8080 | 8084 | Нет |

@@ -23,6 +23,8 @@ import com.solano.eidoscore.service.mapper.GoldenRecordMapper;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.solano.eidoscore.search.RecordChanged;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +60,7 @@ public class DepersonalizationService {
     private final GoldenRecordMapper mapper;
     private final TokenizationService tokenizationService;
     private final EntityManager entityManager;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public DepersonalizationService(
@@ -65,12 +68,14 @@ public class DepersonalizationService {
             GoldenRecordMapper mapper,
             TokenizationService tokenizationService,
             EntityManager entityManager,
+            ApplicationEventPublisher eventPublisher,
             Clock clock
     ) {
         this.goldenRecordRepository = goldenRecordRepository;
         this.mapper = mapper;
         this.tokenizationService = tokenizationService;
         this.entityManager = entityManager;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -159,5 +164,9 @@ public class DepersonalizationService {
         // переданная сущность осталась бы со старыми значениями, и вызывающий
         // код работал бы с тем, чего в базе уже нет.
         entityManager.refresh(record);
+        // Индекс — вторая копия персональных данных, и обезличивание обязано
+        // доставать её тоже: документ обезличенной записи удаляется, документ
+        // раскрытой возвращается.
+        eventPublisher.publishEvent(new RecordChanged.Client(record));
     }
 }

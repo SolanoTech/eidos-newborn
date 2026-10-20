@@ -17,6 +17,7 @@
 package com.solano.eidoscore.web;
 
 import com.solano.eidoscore.entity.GoldenRecord;
+import com.solano.eidoscore.search.FuzzySearchService;
 import com.solano.eidoscore.entity.GoldenRecordExternalId;
 import com.solano.eidoscore.service.ExternalIdService;
 import com.solano.eidoscore.service.GoldenRecordSearchService;
@@ -36,6 +37,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * External Golden Record API — для партнёрских систем (поиск + управление
@@ -65,6 +67,25 @@ public class ExternalGoldenRecordController {
             @RequestParam(required = false) String passport
     ) {
         return searchService.accurateSearch(firstName, lastName, birthDate, pinfl, passport);
+    }
+
+    /**
+     * Нечёткий поиск клиента по имени.
+     *
+     * <p>Отдаются только идентификаторы Золотых записей и оценка совпадения.
+     * Карточку потребитель дочитывает точным поиском или по своему
+     * идентификатору: поиск по имени — способ найти нужного человека, а не
+     * выгрузить базу. По той же причине на маршруте обязателен лимит частоты.</p>
+     *
+     * <p>Запрос короче трёх символов отклоняется, клиенты без действующего
+     * согласия не находятся.</p>
+     */
+    @GetMapping("/search/fuzzy")
+    public List<FuzzySearchService.Match> fuzzySearch(
+            @RequestParam String query,
+            @RequestParam(defaultValue = "20") int limit
+    ) {
+        return searchService.fuzzySearchClients(query, limit);
     }
 
     @GetMapping("/search/source-id")

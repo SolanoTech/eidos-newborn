@@ -113,7 +113,8 @@ Compose:
 | Слой | Технологии |
 |---|---|
 | Сервисы | Java 26, Spring Boot 4, Spring Data JPA, Spring Kafka, Spring Security |
-| Хранилища | PostgreSQL 16 (с расширением `pg_trgm`), MongoDB 7 |
+| Хранилища | PostgreSQL 16, MongoDB 7 |
+| Нечёткий поиск | OpenSearch 3 |
 | Обмен сообщениями | Kafka API (на стенде — Redpanda) |
 | Криптография | Google Tink, OpenBao (движок transit) |
 | Идентификация | Keycloak 26, OpenID Connect |

@@ -215,7 +215,7 @@ public class LegalEntityTentativeService {
     private LegalEntityRecord scratchFrom(TentativeLegalEntity tentative) {
         LegalEntityRecord scratch = new LegalEntityRecord();
         BeanUtils.copyProperties(tentative, scratch,
-                "grLegalEntityId", "version", "createdAt", "updatedAt", "nameNormalized");
+                "grLegalEntityId", "version", "createdAt", "updatedAt");
         return scratch;
     }
 

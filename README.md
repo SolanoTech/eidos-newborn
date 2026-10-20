@@ -21,7 +21,7 @@
 | [shared-library](shared-library) | общий контракт данных | — |
 
 Инфраструктура: PostgreSQL, MongoDB, Redpanda (Kafka-совместимый брокер),
-Keycloak, OpenBao, Gravitee APIM.
+OpenSearch, Keycloak, OpenBao, Gravitee APIM.
 
 ## Как данные проходят через платформу
 
@@ -116,6 +116,7 @@ docker compose logs -f eidos-core
 | `POSTGRES_PASSWORD` | пароль PostgreSQL |
 | `OPENBAO_TOKEN` | доступ к хранилищу ключей |
 | `OPENBAO_KEK_NAME` | имя ключа шифрования ключей |
+| `OPENSEARCH_INITIAL_ADMIN_PASSWORD` | пароль администратора кластера OpenSearch |
 | `CONSENT_EVENTS_TOPIC` | топик событий о согласиях |
 | `CONSENT_EXPIRY_CRON` | расписание проверки истёкших согласий |
 
@@ -141,6 +142,8 @@ docker compose logs -f eidos-core
 | Kafka | 19092 |
 | Keycloak | 8180 |
 | OpenBao | 8200 |
+| OpenSearch | 9200 |
+| OpenSearch Dashboards | 5601 |
 
 Порты PostgreSQL, MongoDB и consents смещены относительно стандартных: те заняты
 сторонними стеками на той же машине.

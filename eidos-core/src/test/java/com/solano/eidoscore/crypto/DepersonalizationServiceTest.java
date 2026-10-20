@@ -55,6 +55,7 @@ class DepersonalizationServiceTest {
     @Mock GoldenRecordRepository goldenRecordRepository;
     @Mock TokenizationService tokenizationService;
     @Mock EntityManager entityManager;
+    @Mock org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     private DepersonalizationService service;
 
@@ -62,7 +63,8 @@ class DepersonalizationServiceTest {
     void setUp() {
         Clock fixed = Clock.fixed(NOW.atZone(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault());
         service = new DepersonalizationService(
-                goldenRecordRepository, new GoldenRecordMapper(), tokenizationService, entityManager, fixed);
+                goldenRecordRepository, new GoldenRecordMapper(), tokenizationService,
+                entityManager, eventPublisher, fixed);
         lenient().when(tokenizationService.openBatch(anyString())).thenReturn(UUID.randomUUID());
         lenient().when(tokenizationService.tokenize(any(), anyString(), anyString(), anyString()))
                 .thenAnswer(i -> "tok_" + i.getArgument(2));

@@ -41,7 +41,7 @@ public class LegalEntitySnapshotter {
 
     /** Технические поля, которые не должны попадать в снимок. */
     private static final String[] IGNORED_ON_COPY = {
-            "version", "createdAt", "updatedAt", "nameNormalized"
+            "version", "createdAt", "updatedAt"
     };
 
     private final LegalEntityArchiveRepository archiveRepository;

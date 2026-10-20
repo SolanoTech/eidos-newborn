@@ -29,6 +29,19 @@
 | `eidos.crypto.depersonalisation.sweep-enabled` | `true` | — | Страховочный проход по записям, форма хранения которых разошлась с согласием |
 | `eidos.crypto.depersonalisation.sweep-cron` | `0 20 * * * *` | — | Расписание прохода. Основной путь — событие о согласии |
 | `eidos.crypto.depersonalisation.batch-size` | `200` | — | Размер пачки прохода |
+| `eidos.search.host` | `localhost` | `opensearch-node1` | Адрес кластера OpenSearch |
+| `eidos.search.port` | `9200` | `9200` | Порт кластера |
+| `eidos.search.scheme` | `https` | `https` | Плагин безопасности включён, поэтому HTTPS |
+| `eidos.search.username` | `admin` | `admin` | Учётная запись кластера |
+| `eidos.search.password` | — | `${OPENSEARCH_INITIAL_ADMIN_PASSWORD}` | Пароль кластера |
+| `eidos.search.trust-self-signed` | `true` | `true` | Не проверять сертификат. **Только для стенда с демонстрационными сертификатами** |
+| `eidos.search.enabled` | `true` | — | Индексация и поиск |
+| `eidos.search.max-results` | `50` | — | Потолок числа результатов одного запроса |
+| `eidos.search.sweep-enabled` | `true` | — | Догоняющий проход по индексу |
+| `eidos.search.sweep-cron` | `0 */30 * * * *` | — | Расписание прохода |
+| `eidos.search.sweep-look-back-minutes` | `120` | — | Окно прохода: берётся с запасом относительно периода |
+| `eidos.search.batch-size` | `500` | — | Размер пачки прохода |
+| `eidos.search.reindex-on-startup` | `false` | — | Полная переиндексация при старте: первое наполнение и смена соответствия полей |
 | `eidos.crypto.blind-index.batch-size` | `500` | — | Размер пачки досчёта |
 
 ## eidos-stage

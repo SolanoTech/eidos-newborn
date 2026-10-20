@@ -23,8 +23,15 @@
 источника или с конфликтом при равном доверии, — попадают в отдельную очередь на
 разбор.
 
-**Поиск.** Точный по реквизитам, структурный по нескольким критериям и нечёткий
-по названию мерчанта через триграммный индекс.
+**Поиск.** Точный по реквизитам и структурный по нескольким критериям — в
+PostgreSQL через слепой индекс. Нечёткий по ФИО клиента и названию мерчанта — в
+OpenSearch: кириллица и латиница сведены анализатором, опечатки прощаются, у
+мерчантов отбрасываются организационно-правовые формы.
+
+**Поисковый индекс** наполняется после фиксации изменений, отдельным индексом на
+клиентов и на мерчантов. Хранит только то, по чему ищут нечётко: ФИО и названия.
+Обезличенная запись из индекса удаляется, раскрытая — возвращается, поэтому
+клиент без согласия нечётким поиском не находится.
 
 **Согласия.** Слушает события сервиса согласий и ведёт на записи состояние
 согласия на обработку персональных данных. Событие служит поводом свериться:
@@ -101,6 +108,12 @@ cd eidos-core && ./mvnw test
 | `eidos.crypto.depersonalisation.sweep-enabled` | страховочный проход по рассогласованным записям |
 | `eidos.crypto.depersonalisation.sweep-cron` | расписание прохода |
 | `eidos.crypto.depersonalisation.batch-size` | размер пачки прохода |
+| `eidos.search.host` / `.port` / `.scheme` | адрес кластера OpenSearch |
+| `eidos.search.username` / `.password` | доступ к кластеру |
+| `eidos.search.trust-self-signed` | не проверять сертификат — только для стенда |
+| `eidos.search.enabled` | индексация и поиск |
+| `eidos.search.sweep-cron` | расписание догоняющего прохода по индексу |
+| `eidos.search.reindex-on-startup` | полная переиндексация при старте |
 
 Схемой владеет Flyway, `ddl-auto` выставлен в `validate`: изменение сущности без
 миграции роняет приложение на старте.
@@ -113,6 +126,7 @@ cd eidos-core && ./mvnw test
 |---|---|---|
 | `GET` | `/api/v1/external/golden-records/search/accurate` | точный поиск: `firstName`, `lastName`, `birthDate` и `pinfl` либо `passport` |
 | `GET` | `/api/v1/external/golden-records/search/source-id` | поиск по идентификатору в системе-источнике: `source`, `source_id` |
+| `GET` | `/api/v1/external/golden-records/search/fuzzy` | нечёткий поиск по имени: `query`, `limit`. Отдаёт идентификаторы и оценку совпадения |
 | `POST` | `/api/v1/external/golden-records/{uuid}/external-id` | привязать внешний идентификатор |
 | `PUT` | `/api/v1/external/golden-records/{uuid}/external-id` | изменить внешний идентификатор |
 | `PUT` | `/api/v1/external/golden-records/external-id` | изменить внешний идентификатор по прежнему значению |
@@ -122,7 +136,7 @@ cd eidos-core && ./mvnw test
 | Метод | Путь | Назначение |
 |---|---|---|
 | `POST` | `/api/v1/internal/golden-records` | приём карточки: создание или слияние |
-| `GET` | `/api/v1/internal/golden-records/search` | поиск по образцу, параметры `query`, `page` |
+| `GET` | `/api/v1/internal/golden-records/search` | нечёткий поиск по ФИО: `query`, `page` |
 | `GET` | `/api/v1/internal/golden-records/search/structured` | поиск по реквизитам: `pinfl`, `passport`, `lastName`, `firstName`, `middleName`, `phone` |
 | `GET` | `/api/v1/internal/golden-records/{clientId}` | карточка целиком |
 | `GET` | `/api/v1/internal/golden-records/{clientId}/field-meta` | происхождение полей |

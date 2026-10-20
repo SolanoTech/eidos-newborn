@@ -23,6 +23,8 @@ import com.solano.eidoscore.repository.SourceRepository;
 import com.solano.eidoscore.repository.legal.LegalEntityExternalIdRepository;
 import com.solano.eidoscore.repository.legal.LegalEntityRecordRepository;
 import com.solano.shared.dto.LegalEntityGoldenRecordDto;
+import com.solano.eidoscore.search.RecordChanged;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,7 @@ import java.util.Optional;
 public class LegalEntitySaveService {
 
     private final LegalEntityRecordRepository recordRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final RecordSaveFlow<LegalEntityGoldenRecordDto, LegalEntityRecord> flow;
 
     public LegalEntitySaveService(
@@ -46,9 +49,11 @@ public class LegalEntitySaveService {
             LegalEntityExternalIdRepository externalIdRepository,
             LegalEntityCreator creator,
             LegalEntityMerger merger,
-            LegalEntitySnapshotter snapshotter
+            LegalEntitySnapshotter snapshotter,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.recordRepository = recordRepository;
+        this.eventPublisher = eventPublisher;
         this.flow = new RecordSaveFlow<>(
                 sourceRepository::findBySourceName,
                 (source, externalId) -> externalIdRepository
@@ -63,7 +68,9 @@ public class LegalEntitySaveService {
 
     @Transactional
     public LegalEntityRecord execute(LegalEntityGoldenRecordDto dto, String sourceName, String externalId) {
-        return flow.execute(dto, sourceName, externalId);
+        LegalEntityRecord record = flow.execute(dto, sourceName, externalId);
+        eventPublisher.publishEvent(new RecordChanged.Merchant(record));
+        return record;
     }
 
     private Optional<LegalEntityRecord> matchByInn(LegalEntityGoldenRecordDto dto) {

@@ -54,6 +54,7 @@ class GoldenRecordSaveServiceTest {
     @Mock GoldenRecordSnapshotter snapshotter;
     @Mock com.solano.eidoscore.repository.vault.PdBlindIndexKeyRepository blindIndexKeyRepository;
     @Mock com.solano.eidoscore.crypto.DepersonalizationService depersonalizationService;
+    @Mock org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     private GoldenRecordSaveService service;
     private com.solano.eidoscore.crypto.BlindIndex blindIndex;
@@ -69,7 +70,8 @@ class GoldenRecordSaveServiceTest {
                 merger,
                 snapshotter,
                 blindIndex,
-                depersonalizationService
+                depersonalizationService,
+                eventPublisher
         );
     }
 

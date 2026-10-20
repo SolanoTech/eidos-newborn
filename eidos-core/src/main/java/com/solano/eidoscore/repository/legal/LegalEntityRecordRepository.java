@@ -20,8 +20,7 @@ import com.solano.eidoscore.entity.legal.LegalEntityRecord;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -29,25 +28,9 @@ import java.util.Optional;
 @Repository
 public interface LegalEntityRecordRepository extends JpaRepository<LegalEntityRecord, String> {
 
+    /** Изменённые с указанного момента — для догоняющего прохода поискового индекса. */
+    Page<LegalEntityRecord> findByUpdatedAtAfter(LocalDateTime since, Pageable pageable);
+
     /** Точный поиск: ИНН — самодостаточный ключ юрлица. */
     Optional<LegalEntityRecord> findByGrInn(String inn);
-
-    /**
-     * Неточный поиск по названию мерчанта: триграммное сходство
-     * нормализованного названия (pg_trgm). Требует расширения
-     * {@code pg_trgm} и GIN-индекса — см. docker/postgres-init.
-     */
-    @Query(value = """
-            SELECT * FROM legal_entity_record r
-            WHERE similarity(r.name_normalized, :query) >= :threshold
-            ORDER BY similarity(r.name_normalized, :query) DESC, r.gr_full_name
-            """,
-            countQuery = """
-                    SELECT count(*) FROM legal_entity_record r
-                    WHERE similarity(r.name_normalized, :query) >= :threshold
-                    """,
-            nativeQuery = true)
-    Page<LegalEntityRecord> fuzzyByName(@Param("query") String normalizedQuery,
-                                        @Param("threshold") double threshold,
-                                        Pageable pageable);
 }

@@ -33,6 +33,9 @@ import java.util.Optional;
 @Repository
 public interface GoldenRecordRepository extends JpaRepository<GoldenRecord, String> {
 
+    /** Изменённые с указанного момента — для догоняющего прохода поискового индекса. */
+    Page<GoldenRecord> findByUpdatedAtAfter(LocalDateTime since, Pageable pageable);
+
     Optional<GoldenRecord> findByGrPinfl(String pinfl);
 
     /**
