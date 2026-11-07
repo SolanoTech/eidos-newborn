@@ -134,6 +134,9 @@ services:
       EIDOS_SEARCH_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
       # Кластер стенда с демонстрационными сертификатами; выше стенда — выключить.
       EIDOS_SEARCH_TRUST_SELF_SIGNED: "true"
+      # Разовая доиндексация всей базы при старте: нужна после восстановления
+      # индекса или когда записи создавались до его появления.
+      EIDOS_SEARCH_REINDEX_ON_STARTUP: "${EIDOS_SEARCH_REINDEX_ON_STARTUP:-false}"
     ports:
       - "8080:8080"
     depends_on:
