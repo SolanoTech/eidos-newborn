@@ -1,0 +1,48 @@
+# Край демонстрационного стенда: TLS от Let's Encrypt и маршрутизация по именам.
+#
+# Три имени на один IP — так консоли и Keycloak живут каждый на своём хосте и
+# SPA не надо пересобирать под базовый путь.
+#
+# Весь стенд закрыт basic-аутентификацией. Это не декорация: в демо-сборке нет
+# Gravitee, и админские пути консолей идут в eidos-stage и eidos-core с
+# подставленным служебным токеном, без проверки JWT пользователя. Без этого
+# барьера их мог бы вызвать любой. Снимать basicauth допустимо только вместе с
+# возвратом Gravitee — см. deploy/demo/README.md.
+
+{
+	email {$DEMO_ACME_EMAIL}
+}
+
+(gate) {
+	basicauth {
+		demo {$DEMO_BASIC_AUTH_HASH}
+	}
+}
+
+# Административная консоль
+https://{$DEMO_ADMIN_HOST} {
+	import gate
+	encode zstd gzip
+	reverse_proxy eidos-cdi-ui:80
+}
+
+# Консоль фронт-офиса (Customer 360)
+https://{$DEMO_CDP_HOST} {
+	import gate
+	encode zstd gzip
+	reverse_proxy eidos-cdp-ui:80
+}
+
+# Keycloak. Без basicauth: через этот хост идут редиректы входа и загрузка
+# ключей, лишний барьер сломал бы поток OIDC. Консоль администратора Keycloak
+# наружу не отдаём — она доступна только из внутренней сети.
+https://{$DEMO_AUTH_HOST} {
+	encode zstd gzip
+
+	@admin path /admin* /metrics* /health*
+	respond @admin 404
+
+	reverse_proxy keycloak:8180 {
+		header_up X-Forwarded-Proto https
+	}
+}

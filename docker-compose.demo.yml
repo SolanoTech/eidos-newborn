@@ -1,0 +1,324 @@
+# Публичный демонстрационный стенд: только показ интерфейса.
+#
+# Отличия от docker-compose.yml:
+#   * нет стека Gravitee — админские пути консолей идут прямо в eidos-stage и
+#     eidos-core, токен подставляет nginx (deploy/demo/nginx-console.conf);
+#   * OpenSearch одним узлом, без Dashboards;
+#   * наружу открыт только Caddy (80/443), остальные порты не публикуются —
+#     у eidos-core, eidos-stage и eidos-consents нет аутентификации;
+#   * пароли и токены берутся из .env, значений по умолчанию нет.
+#
+# Разворачивание — deploy/demo/README.md.
+# Настоящие персональные данные на этом стенде недопустимы.
+
+name: eidos-demo
+
+services:
+  # ---------- Край: TLS и маршрутизация по именам ----------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DEMO_ADMIN_HOST: ${DEMO_ADMIN_HOST:?укажите DEMO_ADMIN_HOST в .env}
+      DEMO_CDP_HOST: ${DEMO_CDP_HOST:?укажите DEMO_CDP_HOST в .env}
+      DEMO_AUTH_HOST: ${DEMO_AUTH_HOST:?укажите DEMO_AUTH_HOST в .env}
+      DEMO_ACME_EMAIL: ${DEMO_ACME_EMAIL:?укажите DEMO_ACME_EMAIL в .env}
+    # Хеш пароля — отдельным файлом: bcrypt содержит $, а значения в
+    # environment compose интерполирует.
+    env_file:
+      - ./deploy/demo/caddy.env
+    volumes:
+      - ./deploy/demo/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - eidos-cdi-ui
+      - eidos-cdp-ui
+      - keycloak
+    networks: [eidos-net]
+
+  # ---------- Инфраструктура ----------
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?укажите POSTGRES_PASSWORD в .env}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks: [eidos-net]
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks: [eidos-net]
+
+  # Нужен сервисам согласий и ядру для обмена событиями; приёма данных на
+  # стенде нет, но без брокера оба сервиса будут писать в журнал ошибки.
+  kafka:
+    image: redpandadata/redpanda:v24.2.7
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --memory=512M
+      - --node-id=0
+      - --kafka-addr=INTERNAL://0.0.0.0:9092
+      - --advertise-kafka-addr=INTERNAL://kafka:9092
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [eidos-net]
+
+  # ---------- Identity ----------
+  # KC_HOSTNAME — публичное имя: консоли получают по нему ключи и редиректы.
+  # KC_PROXY_HEADERS: за Caddy Keycloak обязан доверять X-Forwarded-*, иначе
+  # соберёт ссылки на внутренний адрес.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: start-dev --http-port=8180 --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:?укажите KEYCLOAK_ADMIN_USER в .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?укажите KEYCLOAK_ADMIN_PASSWORD в .env}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: https://${DEMO_AUTH_HOST}
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY_HEADERS: xforwarded
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8180 && printf 'GET /realms/eidos HTTP/1.1\r\nHost: localhost:8180\r\nConnection: close\r\n\r\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [eidos-net]
+
+  # ---------- Хранилище ключей ----------
+  # Dev-режим: KEK живёт в памяти и исчезает при перезапуске контейнера.
+  # После рестарта восстановите слепой индекс — deploy/demo/README.md.
+  openbao:
+    image: openbao/openbao:latest
+    restart: unless-stopped
+    command: server -dev -dev-listen-address=0.0.0.0:8200
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_TOKEN:?укажите OPENBAO_TOKEN в .env}
+      BAO_ADDR: http://127.0.0.1:8200
+    cap_add: [IPC_LOCK]
+    healthcheck:
+      test: ["CMD-SHELL", "bao status -address=http://127.0.0.1:8200 >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [eidos-net]
+
+  # ---------- Поиск ----------
+  # Один узел: discovery.type=single-node, иначе кластер не выберет мастера.
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    restart: unless-stopped
+    environment:
+      - cluster.name=eidos-demo
+      - node.name=opensearch
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?укажите OPENSEARCH_INITIAL_ADMIN_PASSWORD в .env}
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 65536, hard: 65536}
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    networks: [eidos-net]
+
+  # ---------- Сервисы платформы ----------
+  eidos-core:
+    build:
+      context: .
+      dockerfile: eidos-core/Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eidos_core
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      EIDOS_CONSENTS_BASE_URL: http://eidos-consents:8082
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EIDOS_CONSENTS_EVENTS_TOPIC: ${CONSENT_EVENTS_TOPIC:-consent-events}
+      EIDOS_CONSENTS_EVENTS_ENABLED: "true"
+      EIDOS_CRYPTO_OPENBAO_BASE_URL: http://openbao:8200
+      EIDOS_CRYPTO_OPENBAO_TOKEN: ${OPENBAO_TOKEN}
+      EIDOS_CRYPTO_OPENBAO_KEK_NAME: ${OPENBAO_KEK_NAME:-eidos-pd-kek}
+      EIDOS_SEARCH_HOST: opensearch
+      EIDOS_SEARCH_PORT: "9200"
+      EIDOS_SEARCH_SCHEME: https
+      EIDOS_SEARCH_USERNAME: admin
+      EIDOS_SEARCH_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+      EIDOS_SEARCH_TRUST_SELF_SIGNED: "true"
+      EIDOS_SEARCH_REINDEX_ON_STARTUP: "${EIDOS_SEARCH_REINDEX_ON_STARTUP:-false}"
+    depends_on:
+      postgres: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      openbao: {condition: service_healthy}
+    networks: [eidos-net]
+
+  eidos-stage:
+    build:
+      context: .
+      dockerfile: eidos-stage/Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eidos_registry
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_MONGODB_URI: mongodb://mongo:27017/eidos_stage
+      EIDOS_STAGE_ADMIN_TOKEN: ${ADMIN_TOKEN:?укажите ADMIN_TOKEN в .env}
+      EIDOS_CORE_BASE_URL: http://eidos-core:8080
+    depends_on:
+      postgres: {condition: service_healthy}
+      mongo: {condition: service_healthy}
+    networks: [eidos-net]
+
+  eidos-consents:
+    build:
+      context: ./eidos-consents
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/consents
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EIDOS_CONSENTS_EVENTS_TOPIC: ${CONSENT_EVENTS_TOPIC:-consent-events}
+      EIDOS_CONSENTS_EVENTS_ENABLED: "true"
+      EIDOS_CONSENTS_EVENTS_EXPIRY_CRON: ${CONSENT_EXPIRY_CRON:-0 5 0 * * *}
+    depends_on:
+      postgres: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    networks: [eidos-net]
+
+  eidos-gateway:
+    build:
+      context: ./eidos-gateway
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gateway
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      EIDOS_REGISTRY_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eidos_registry
+      EIDOS_REGISTRY_DATASOURCE_USERNAME: postgres
+      EIDOS_REGISTRY_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      GATEWAY_ADMIN_TOKEN: ${ADMIN_TOKEN}
+      EIDOS_CORE_BASE_URL: http://eidos-core:8080
+      EIDOS_CONSENTS_BASE_URL: http://eidos-consents:8082
+      EIDOS_STAGE_BASE_URL: http://eidos-stage:8081
+      GATEWAY_RATE_LIMIT_ENABLED: "true"
+      GATEWAY_RATE_LIMIT_PER_MINUTE: ${GATEWAY_RATE_LIMIT_PER_MINUTE:-120}
+      GATEWAY_RATE_LIMIT_FUZZY_SEARCH_PER_MINUTE: ${GATEWAY_RATE_LIMIT_FUZZY_SEARCH_PER_MINUTE:-20}
+    depends_on:
+      postgres: {condition: service_healthy}
+      eidos-stage: {condition: service_started}
+      kafka: {condition: service_healthy}
+    networks: [eidos-net]
+
+  eidos-cdi-ui-backend:
+    build:
+      context: ./eidos-cdi-ui-backend
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/eidos_ui_backend
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8180/realms/eidos/protocol/openid-connect/certs
+      EIDOS_STAGE_BASE_URL: http://eidos-stage:8081
+      EIDOS_STAGE_ADMIN_TOKEN: ${ADMIN_TOKEN}
+      EIDOS_GATEWAY_BASE_URL: http://eidos-gateway:8090
+      EIDOS_GATEWAY_ADMIN_TOKEN: ${ADMIN_TOKEN}
+      EIDOS_CORE_BASE_URL: http://eidos-core:8080
+      EIDOS_CONSENTS_BASE_URL: http://eidos-consents:8082
+    depends_on:
+      postgres: {condition: service_healthy}
+      eidos-stage: {condition: service_started}
+      eidos-gateway: {condition: service_started}
+      eidos-core: {condition: service_started}
+    networks: [eidos-net]
+
+  # ---------- Консоли ----------
+  # VITE_KC_* уходят в сборку: адрес Keycloak впекается в бандл.
+  # nginx-console.conf заменяет штатный конфиг — в нём админские пути идут
+  # мимо Gravitee.
+  eidos-cdi-ui:
+    build:
+      context: ./eidos-cdi-ui
+      args:
+        APP: admin
+        VITE_KC_URL: https://${DEMO_AUTH_HOST}
+        VITE_KC_REALM: eidos
+        VITE_KC_CLIENT_ID: eidos-console
+    restart: unless-stopped
+    volumes:
+      - ./deploy/demo/nginx-console.conf:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      # Без фильтра envsubst подставил бы любые переменные окружения,
+      # встреченные в шаблоне.
+      NGINX_ENVSUBST_FILTER: ADMIN_TOKEN
+    depends_on:
+      - eidos-cdi-ui-backend
+    networks: [eidos-net]
+
+  eidos-cdp-ui:
+    build:
+      context: ./eidos-cdi-ui
+      args:
+        APP: front-office
+        VITE_KC_URL: https://${DEMO_AUTH_HOST}
+        VITE_KC_REALM: eidos
+        VITE_KC_CLIENT_ID: eidos-console
+    restart: unless-stopped
+    volumes:
+      - ./deploy/demo/nginx-console.conf:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      # Без фильтра envsubst подставил бы любые переменные окружения,
+      # встреченные в шаблоне.
+      NGINX_ENVSUBST_FILTER: ADMIN_TOKEN
+    depends_on:
+      - eidos-cdi-ui-backend
+    networks: [eidos-net]
+
+volumes:
+  postgres-data:
+  mongo-data:
+  opensearch-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  eidos-net:

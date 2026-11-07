@@ -186,6 +186,7 @@ nav:
           - Резервное копирование: operations/backup.md
           - Мониторинг и диагностика: operations/monitoring.md
           - Производительность: operations/performance.md
+          - Демонстрационный стенд: operations/demo-stand.md
           - Устранение неполадок: operations/troubleshooting.md
       - Безопасность:
           - Периметр и угрозы: security/perimeter.md
