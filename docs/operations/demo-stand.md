@@ -108,8 +108,27 @@ cp deploy/demo/.env.demo.example .env
 cp deploy/demo/caddy.env.example deploy/demo/caddy.env
 ```
 
-Заполните `.env`: три имени, адрес для Let's Encrypt, пароли и токены. Хеш
-пароля для входа на стенд положите в `deploy/demo/caddy.env` — отдельным
+Заполните `.env`: три имени, адрес для Let's Encrypt, пароли и токены.
+Значений по умолчанию нет намеренно — пустой секрет должен ломать запуск.
+Сгенерировать разом:
+
+```bash
+{
+  echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+  echo "ADMIN_TOKEN=$(openssl rand -hex 24)"
+  echo "OPENBAO_TOKEN=$(openssl rand -hex 16)"
+  echo "DEMO_SOURCE_TOKEN=tk_$(openssl rand -hex 12)"
+  echo "KEYCLOAK_ADMIN_PASSWORD=$(openssl rand -hex 16)"
+  echo "DEMO_CONSOLE_PASSWORD=$(openssl rand -hex 12)"
+  echo "OPENSEARCH_INITIAL_ADMIN_PASSWORD=Eidos@$(openssl rand -hex 8)Aa1"
+}
+```
+
+Пароль OpenSearch должен содержать заглавную, строчную, цифру и спецсимвол —
+шаблон это обеспечивает. Спецсимвол взят `@`, а не `!`: в интерактивном bash
+`!` запускает подстановку из истории команд, и строка искажается до запуска.
+
+Хеш пароля для входа на стенд положите в `deploy/demo/caddy.env` — отдельным
 файлом потому, что bcrypt содержит символы `$`, а значения из `environment`
 Compose раскрывает.
 

@@ -15,10 +15,27 @@ cd "$(dirname "$0")/../.."
 COMPOSE="docker compose -f docker-compose.demo.yml"
 
 [ -f .env ] || { echo "Нет .env рядом с docker-compose.demo.yml" >&2; exit 1; }
-set -a; . ./.env; set +a
+
+# .env читается разбором, а не source: в формате Compose значение может
+# содержать пробелы без кавычек (CONSENT_EXPIRY_CRON=0 5 0 * * *), и шелл
+# принял бы его за команду. Окружающие кавычки снимаем — так же делает Compose.
+read_env() {
+    local value
+    value=$(grep -m1 -E "^[[:space:]]*$1=" .env | cut -d= -f2- || true)
+    value=${value#\"}; value=${value%\"}
+    value=${value#\'}; value=${value%\'}
+    printf '%s' "$value"
+}
+
+DEMO_ADMIN_HOST=$(read_env DEMO_ADMIN_HOST)
+DEMO_CDP_HOST=$(read_env DEMO_CDP_HOST)
+KEYCLOAK_ADMIN_USER=$(read_env KEYCLOAK_ADMIN_USER)
+KEYCLOAK_ADMIN_PASSWORD=$(read_env KEYCLOAK_ADMIN_PASSWORD)
+DEMO_CONSOLE_USER=$(read_env DEMO_CONSOLE_USER)
+DEMO_CONSOLE_PASSWORD=$(read_env DEMO_CONSOLE_PASSWORD)
 
 for var in DEMO_ADMIN_HOST DEMO_CDP_HOST KEYCLOAK_ADMIN_USER KEYCLOAK_ADMIN_PASSWORD DEMO_CONSOLE_USER DEMO_CONSOLE_PASSWORD; do
-    [ -n "${!var:-}" ] || { echo "Не задано: $var" >&2; exit 1; }
+    [ -n "${!var:-}" ] || { echo "Не задано в .env: $var" >&2; exit 1; }
 done
 
 echo "Ожидаю Keycloak…"
