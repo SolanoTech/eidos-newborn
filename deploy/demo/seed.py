@@ -166,6 +166,24 @@ def register_in_core(code, trust, dry):
     print(f"  источник {code} зарегистрирован в ядре, доверие {trust}")
 
 
+def ensure_contract_meta(source_id, entity_type, token, dry):
+    """Задаёт поле контракта, из которого берётся идентификатор в источнике.
+
+    Без него ContractMapper отдаёт null, а ядро требует непустой
+    client_source_identificator и отклоняет карточку.
+    """
+    if dry:
+        print(f"  контракт {entity_type}: идентификатор из client_id")
+        return
+    status, payload = request(
+        "PUT",
+        f"{STAGE}/internal/api/v1/sources/{source_id}/contract?entityType={entity_type}",
+        {"clientIdentifierField": "client_id"}, admin(token))
+    if status not in (200, 201):
+        sys.exit(f"Не удалось задать поле-идентификатор для {entity_type}: {status} {payload}")
+    print(f"  контракт {entity_type}: идентификатор из client_id")
+
+
 def ensure_contract(source_id, fields, entity_type, token, dry):
     if dry:
         print(f"  контракт {entity_type}: {len(fields)} правил")
@@ -188,6 +206,7 @@ def ensure_contract(source_id, fields, entity_type, token, dry):
 
 
 def person(rng, idx):
+    """Карточка физлица. client_id — идентификатор в системе-источнике."""
     female = rng.random() < 0.5
     last = rng.choice(LAST_NAMES)
     if female and not last.endswith(("а", "я")):
@@ -196,6 +215,7 @@ def person(rng, idx):
     issued = date(2015, 1, 1) + timedelta(days=rng.randrange(0, 365 * 9))
     first = rng.choice(FIRST_F if female else FIRST_M)
     return {
+        "client_id": f"DEMO-P-{idx}",
         "last_name": last,
         "first_name": first,
         "middle_name": rng.choice(MIDDLE_F if female else MIDDLE_M),
@@ -203,7 +223,8 @@ def person(rng, idx):
         "pinfl": f"{rng.randrange(3, 7)}{rng.randrange(10**12, 10**13 - 1)}",
         "gender": "F" if female else "M",
         "birth_date": birth.isoformat(),
-        "phone": f"9989{rng.randrange(10**8, 10**9 - 1)}",
+        # Шаблон ^998\d{9}$: ровно 12 цифр.
+        "phone": f"998{rng.randrange(10**8, 10**9 - 1)}",
         "email": f"demo.user{idx}@example.invalid",
         "citizenship": "Узбекистан",
         "citizenship_id": "860",
@@ -214,10 +235,11 @@ def person(rng, idx):
     }
 
 
-def merchant(rng, name):
+def merchant(rng, idx, name):
     opf, opf_code = rng.choice(OPF)
     oked_code, oked_name = rng.choice(OKED)
     return {
+        "client_id": f"DEMO-L-{idx}",
         "inn": str(rng.randrange(100000000, 999999999)),
         "full_name": f'{opf} "{name}"',
         "short_name": name,
@@ -280,7 +302,9 @@ def main():
         source_ids[spec["code"]] = (sid, tok)
         register_in_core(spec["code"], spec["trustLevel"], args.dry_run)
         if sid:
+            ensure_contract_meta(sid, "PERSON", token, args.dry_run)
             ensure_contract(sid, PERSON_FIELDS, "PERSON", token, args.dry_run)
+            ensure_contract_meta(sid, "LEGAL_ENTITY", token, args.dry_run)
             ensure_contract(sid, LEGAL_FIELDS, "LEGAL_ENTITY", token, args.dry_run)
 
     primary = SOURCES[0]["code"]
@@ -302,17 +326,18 @@ def main():
     print(f"Повторный приём вторым источником: {len(overlap)}")
     ok = 0
     for i, p in enumerate(overlap):
-        twin = dict(p, email=f"crm.user{i}@example.invalid",
-                    phone=f"9989{rng.randrange(10**8, 10**9 - 1)}")
+        twin = dict(p, client_id=f"DEMO-C-{i}",
+                    email=f"crm.user{i}@example.invalid",
+                    phone=f"998{rng.randrange(10**8, 10**9 - 1)}")
         if push("/api/v1/client-data", secondary_token, twin, args.dry_run):
             ok += 1
     print(f"  принято: {ok} из {len(overlap)}")
 
     print(f"Юридические лица: {args.merchants}")
     ok = 0
-    for name in MERCHANTS[:args.merchants]:
+    for i, name in enumerate(MERCHANTS[:args.merchants]):
         if push("/api/v1/legal-data", primary_token,
-                merchant(rng, name), args.dry_run):
+                merchant(rng, i, name), args.dry_run):
             ok += 1
     print(f"  принято: {ok} из {min(args.merchants, len(MERCHANTS))}")
 
