@@ -1,8 +1,8 @@
 # Публичный демонстрационный стенд: только показ интерфейса.
 #
 # Отличия от docker-compose.yml:
-#   * нет стека Gravitee — админские пути консолей идут прямо в eidos-stage и
-#     eidos-core, токен подставляет nginx (deploy/demo/nginx-console.conf);
+#   * Gravitee в урезанном составе: монго, шлюз и Management API, без двух
+#     его консолей и без монтирования лицензии;
 #   * OpenSearch одним узлом, без Dashboards;
 #   * наружу открыт только Caddy (80/443), остальные порты не публикуются —
 #     у eidos-core, eidos-stage и eidos-consents нет аутентификации;
@@ -26,10 +26,6 @@ services:
       DEMO_CDP_HOST: ${DEMO_CDP_HOST:?укажите DEMO_CDP_HOST в .env}
       DEMO_AUTH_HOST: ${DEMO_AUTH_HOST:?укажите DEMO_AUTH_HOST в .env}
       DEMO_ACME_EMAIL: ${DEMO_ACME_EMAIL:?укажите DEMO_ACME_EMAIL в .env}
-    # Хеш пароля — отдельным файлом: bcrypt содержит $, а значения в
-    # environment compose интерполирует.
-    env_file:
-      - ./deploy/demo/caddy.env
     volumes:
       - ./deploy/demo/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -271,8 +267,8 @@ services:
 
   # ---------- Консоли ----------
   # VITE_KC_* уходят в сборку: адрес Keycloak впекается в бандл.
-  # nginx-console.conf заменяет штатный конфиг — в нём админские пути идут
-  # мимо Gravitee.
+  # Конфиг nginx берётся из образа: админские пути идут в Gravitee, он
+  # проверяет JWT Keycloak и подставляет служебный токен.
   eidos-cdi-ui:
     build:
       context: ./eidos-cdi-ui
@@ -282,15 +278,9 @@ services:
         VITE_KC_REALM: eidos
         VITE_KC_CLIENT_ID: eidos-console
     restart: unless-stopped
-    volumes:
-      - ./deploy/demo/nginx-console.conf:/etc/nginx/templates/default.conf.template:ro
-    environment:
-      ADMIN_TOKEN: ${ADMIN_TOKEN}
-      # Без фильтра envsubst подставил бы любые переменные окружения,
-      # встреченные в шаблоне.
-      NGINX_ENVSUBST_FILTER: ADMIN_TOKEN
     depends_on:
       - eidos-cdi-ui-backend
+      - gateway
     networks: [eidos-net]
 
   eidos-cdp-ui:
@@ -302,15 +292,73 @@ services:
         VITE_KC_REALM: eidos
         VITE_KC_CLIENT_ID: eidos-console
     restart: unless-stopped
-    volumes:
-      - ./deploy/demo/nginx-console.conf:/etc/nginx/templates/default.conf.template:ro
-    environment:
-      ADMIN_TOKEN: ${ADMIN_TOKEN}
-      # Без фильтра envsubst подставил бы любые переменные окружения,
-      # встреченные в шаблоне.
-      NGINX_ENVSUBST_FILTER: ADMIN_TOKEN
     depends_on:
       - eidos-cdi-ui-backend
+      - gateway
+    networks: [eidos-net]
+
+  # ---------- Gravitee APIM ----------
+  # Урезанный состав: из штатного стека нужны только монго, шлюз и Management
+  # API. Консоль управления и портал разработчика наружу не публикуются и для
+  # работы маршрутов не требуются — всё заводит keycloak/setup_gravitee.py.
+  # Лицензия не монтируется: платные возможности стенду не нужны.
+  #
+  # Всё живёт в eidos-net, поэтому шлюз Gravitee видит и keycloak, и сервисы
+  # платформы по именам, а nginx консолей обращается к нему как gateway:8082.
+  gravitee-mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    volumes:
+      - gravitee-mongo-data:/data/db
+    networks: [eidos-net]
+
+  gravitee-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.1
+    restart: unless-stopped
+    environment:
+      - http.host=0.0.0.0
+      - transport.host=0.0.0.0
+      - xpack.security.enabled=false
+      - cluster.name=gravitee
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 65536, hard: 65536}
+    volumes:
+      - gravitee-es-data:/usr/share/elasticsearch/data
+    networks: [eidos-net]
+
+  # Имя сервиса именно gateway: под этим именем его ищет nginx консолей.
+  gateway:
+    # Тег latest, как в gravitee/docker-compose-apim.yml: setup_gravitee.py
+    # писался под него, а Management API v2 между версиями 4.x менялся.
+    # Закреплять версию стоит, убедившись, что скрипт с ней работает.
+    image: graviteeio/apim-gateway:latest
+    restart: unless-stopped
+    environment:
+      - gravitee_management_mongodb_uri=mongodb://gravitee-mongo:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
+      - gravitee_ratelimit_mongodb_uri=mongodb://gravitee-mongo:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
+      - gravitee_reporters_elasticsearch_endpoints_0=http://gravitee-elasticsearch:9200
+    depends_on:
+      - gravitee-mongo
+      - gravitee-elasticsearch
+    networks: [eidos-net]
+
+  # Management API публикуется только на петлевом интерфейсе: через него
+  # setup_gravitee.py заводит маршруты, и у него свои учётные данные.
+  gravitee-mgmtapi:
+    image: graviteeio/apim-management-api:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8083:8083"
+    environment:
+      - gravitee_management_mongodb_uri=mongodb://gravitee-mongo:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&socketTimeoutMS=5000
+      - gravitee_analytics_elasticsearch_endpoints_0=http://gravitee-elasticsearch:9200
+    depends_on:
+      - gravitee-mongo
+      - gravitee-elasticsearch
     networks: [eidos-net]
 
 volumes:
@@ -319,6 +367,8 @@ volumes:
   opensearch-data:
   caddy-data:
   caddy-config:
+  gravitee-mongo-data:
+  gravitee-es-data:
 
 networks:
   eidos-net:
