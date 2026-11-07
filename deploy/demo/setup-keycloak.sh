@@ -66,7 +66,9 @@ $KCADM update "clients/$CID" -r eidos \
     -s "webOrigins=[\"https://$ADMIN_HOST\",\"https://$CDP_HOST\"]"
 echo "redirectUris и webOrigins обновлены: https://$ADMIN_HOST, https://$CDP_HOST"
 
-UID_=$($KCADM get users -r eidos -q username="$CONSOLE_USER" --exact true \
+# exact — параметр запроса к эндпоинту users, а не опция kcadm: передаётся
+# через -q. Без него username искался бы по подстроке.
+UID_=$($KCADM get users -r eidos -q username="$CONSOLE_USER" -q exact=true \
         --fields id --format csv --noquotes | head -1)
 [ -n "$UID_" ] || { echo "Пользователь $CONSOLE_USER не найден в realm eidos" >&2; exit 1; }
 
