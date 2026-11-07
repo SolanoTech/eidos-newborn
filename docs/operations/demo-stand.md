@@ -157,12 +157,32 @@ docker compose -f docker-compose.demo.yml up -d --build
 пароль пользователя консолей на `DEMO_CONSOLE_PASSWORD`. **Это обязательно:**
 пароль из `realm-eidos.json` лежит в открытом репозитории.
 
-Наполните стенд выдуманными карточками — иначе экраны будут пустыми:
+Наполните стенд выдуманными карточками — иначе экраны будут пустыми.
+
+Засев обращается к `eidos-stage` и `eidos-gateway` по HTTP, а демо-сборка
+порты сервисов не публикует. На время засева их открывает наложение
+`docker-compose.seed.yml` — **только на петлевом интерфейсе**, снаружи они
+по-прежнему недоступны:
 
 ```bash
-python3 -I deploy/demo/seed.py            # 40 физлиц, 12 юрлиц, два источника
+docker compose -f docker-compose.demo.yml -f deploy/demo/docker-compose.seed.yml \
+    up -d eidos-stage eidos-gateway
+
 python3 -I deploy/demo/seed.py --dry-run  # посмотреть, что будет сделано
+python3 -I deploy/demo/seed.py            # 40 физлиц, 12 юрлиц, два источника
+
+docker compose -f docker-compose.demo.yml up -d eidos-stage eidos-gateway
 ```
+
+Последняя команда обязательна: она пересоздаёт оба сервиса без публикации
+портов. Проверить, что портов не осталось:
+
+```bash
+docker compose -f docker-compose.demo.yml ps --format '{{.Service}} {{.Ports}}'
+```
+
+Если скрипт запускают из сети compose, адреса переопределяются переменными
+`EIDOS_STAGE_URL` и `EIDOS_GATEWAY_URL`, и наложение не нужно.
 
 Засев создаёт два источника с разным уровнем доверия, дата-контракты на оба
 типа сущностей и гонит карточки обычным путём приёма через шлюз. Каждая пятая

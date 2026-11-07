@@ -34,6 +34,7 @@
 
 import argparse
 import json
+import os
 import random
 import subprocess
 import sys
@@ -41,8 +42,11 @@ import urllib.error
 import urllib.request
 from datetime import date, timedelta
 
-STAGE = "http://localhost:8081"
-GATEWAY = "http://localhost:8090"
+# Демо-сборка не публикует порты сервисов, поэтому засев работает поверх
+# наложения docker-compose.seed.yml: оно открывает их на 127.0.0.1. Адреса
+# можно переопределить, если скрипт запускают из сети compose.
+STAGE = os.environ.get("EIDOS_STAGE_URL", "http://localhost:8081")
+GATEWAY = os.environ.get("EIDOS_GATEWAY_URL", "http://localhost:8090")
 COMPOSE = ["docker", "compose", "-f", "docker-compose.demo.yml"]
 
 # Источники стенда: разный уровень доверия, чтобы на экранах были видны и

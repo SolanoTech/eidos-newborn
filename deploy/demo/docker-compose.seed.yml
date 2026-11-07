@@ -1,0 +1,24 @@
+# Наложение на время засева: открывает eidos-stage и eidos-gateway только на
+# петлевом интерфейсе машины, чтобы скрипт засева мог до них дотянуться.
+#
+# Демо-сборка намеренно не публикует порты сервисов — наружу смотрит только
+# Caddy. Здесь адрес привязки задан явно: 127.0.0.1, то есть снаружи порты
+# по-прежнему недоступны, даже если межсетевой экран настроен неплотно.
+#
+# Применяется поверх основного файла и только на время засева:
+#
+#   docker compose -f docker-compose.demo.yml -f deploy/demo/docker-compose.seed.yml \
+#       up -d eidos-stage eidos-gateway
+#   python3 -I deploy/demo/seed.py
+#   docker compose -f docker-compose.demo.yml up -d eidos-stage eidos-gateway
+#
+# Последняя команда пересоздаёт оба сервиса без публикации портов.
+
+services:
+  eidos-stage:
+    ports:
+      - "127.0.0.1:8081:8081"
+
+  eidos-gateway:
+    ports:
+      - "127.0.0.1:8090:8090"
