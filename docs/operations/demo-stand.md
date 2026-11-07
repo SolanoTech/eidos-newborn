@@ -203,13 +203,20 @@ docker compose -f docker-compose.demo.yml ps --format '{{.Service}} {{.Ports}}'
 ## Проверка
 
 ```bash
-curl -o /dev/null -w '%{http_code}\n' https://eidos-admin.example.org/
-curl -o /dev/null -w '%{http_code}\n' https://eidos-auth.example.org/realms/eidos
-curl -o /dev/null -w '%{http_code}\n' http://localhost:8082/eidos/sources
+curl -o /dev/null -w 'консоль:  %{http_code}\n' https://eidos-admin.example.org/
+curl -o /dev/null -w 'keycloak: %{http_code}\n' https://eidos-auth.example.org/realms/eidos
+curl -o /dev/null -w 'gravitee: %{http_code}\n' https://eidos-admin.example.org/api/v1/admin/sources
 ```
 
-Первые два — `200`. Третий — `401` от Gravitee: шлюз работает и требует токен.
-Если там `404`, маршруты не заведены, прогоните `setup_gravitee.py`. Затем войдите в консоль под
+Первые два — `200`. Третий — `401`: запрос прошёл через nginx консоли до
+Gravitee, и тот потребовал токен. Порт шлюза Gravitee на хосте не публикуется,
+поэтому проверять его надо именно через путь консоли.
+
+| Ответ на третий запрос | Что значит |
+|---|---|
+| `401` | всё в порядке |
+| `404` | маршруты не заведены — прогоните `setup_gravitee.py` |
+| `502` | шлюз Gravitee не поднялся — смотрите его журнал | Затем войдите в консоль под
 `DEMO_CONSOLE_USER` и проверьте дашборд, поиск, источники и очередь конфликтов.
 
 Экран «Доступ» в административной консоли ссылается на консоль администратора
