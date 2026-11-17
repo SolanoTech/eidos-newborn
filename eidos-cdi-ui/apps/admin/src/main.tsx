@@ -17,6 +17,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+// Дизайн-система EIDOS идёт первой: прикладной слой опирается на её токены.
+import "@eidos/ui-kit/eidos.css";
 import "@eidos/ui-kit/styles.css";
 import App from "./App";
 
