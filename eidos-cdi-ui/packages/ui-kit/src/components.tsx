@@ -16,6 +16,7 @@
 
 // Мелкие переиспользуемые элементы дизайн-системы консоли.
 import type { CSSProperties, ReactNode } from "react";
+import orbSrc from "./eidos/assets/eidos-orb.png";
 
 /** Чип-бейдж: tone = gold | ok | warn | bad | info | undefined (нейтральный). */
 export function Chip({ tone, children }: { tone?: "gold" | "ok" | "warn" | "bad" | "info"; children: ReactNode }) {
@@ -152,10 +153,11 @@ export function Avatar({ seed }: { seed: string }) {
 
 /** Мини-капля-логотип EIDOS. */
 export function LogoDrop({ onClick }: { onClick?: () => void }) {
+  // В шапке та же субстанция, что и на герое, — в лаборатории логотип это
+  // уменьшенный орб, а не нарисованная стеклянная сфера.
   return (
     <div className="logo-drop" role="img" aria-label="EIDOS" onClick={onClick}>
-      <div className="logo-glass" />
-      <span className="logo-hi" />
+      <img src={orbSrc} alt="" draggable={false} />
     </div>
   );
 }

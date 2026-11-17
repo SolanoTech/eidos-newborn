@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { primeAudio, strikeBowl, storm } from "./audio";
+import orbSrc from "./eidos/assets/eidos-orb.png";
 import { toast } from "./toast";
 
 /**
@@ -114,14 +115,13 @@ export function WelcomeDrop({
         </defs>
       </svg>
 
+      {/* Контракт дизайн-системы: .drop > .drop-inner > img.orb.
+          Капля — не нарисованная CSS-сфера, а субстанция-картинка; блики,
+          каустика и ореол system рисует вокруг неё сама. */}
       <div className="drop" ref={dropRef} aria-hidden="true" onPointerEnter={sing} onClick={sing}>
-        <div className="halo" />
+        <span className="halo" />
         <div className="drop-inner">
-          <div className="drop-glass" />
-          <div className="caustic" />
-          <span className="sheen" />
-          <span className="spec spec-a" />
-          <span className="spec spec-b" />
+          <img className="orb" src={orbSrc} alt="" draggable={false} />
         </div>
       </div>
 
@@ -131,6 +131,10 @@ export function WelcomeDrop({
         <div className="em-hint">{hint}</div>
         {cta && <div className="em-cta">{cta}</div>}
       </div>
+
+      {/* Подпись героя — часть языка системы, в лаборатории она на каждом
+          экране приветствия. */}
+      <div className="em-foot">Born by SOLANO Tech</div>
 
       <div className="wolf-shadow" ref={wolfRef} aria-hidden="true">
         <svg viewBox="0 0 240 120" width="100%" height="100%">
