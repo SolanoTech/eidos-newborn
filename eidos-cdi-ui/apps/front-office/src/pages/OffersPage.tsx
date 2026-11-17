@@ -20,7 +20,7 @@ import { addOffer, listOffers, setStatus, type Offer } from "../offersStore";
 import { useCustomer, fio } from "../CustomerContext";
 
 const PRODUCTS = [
-  "Премиальный депозит", "Накопительный счёт", "Premium HUMO Metal", "Дебетовая карта HUMO",
+  "Премиальный депозит", "Накопительный счёт", "Premium Metal", "Дебетовая карта",
   "Кредитная линия", "Авто-рассрочка 0-0-12", "Cashback-программа", "P2P / переводы",
   "Страховой продукт", "Инвестиционный продукт",
 ];
@@ -131,7 +131,7 @@ export function OffersPage() {
   };
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Офферы клиента"

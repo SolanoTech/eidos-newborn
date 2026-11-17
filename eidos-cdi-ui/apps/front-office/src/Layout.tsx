@@ -73,7 +73,7 @@ export function Layout() {
       activeKey={activeKey}
       onNavigate={(key) => navigate(key)}
       username={user.username}
-      roleLabel="CDP Operator · HUMO"
+      roleLabel="CDP Operator · Демобанк"
       onLogout={() => { void logout(); }}
       contextBar={contextBar}
     >

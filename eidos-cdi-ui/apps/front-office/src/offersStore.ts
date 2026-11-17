@@ -31,7 +31,7 @@ export interface Offer {
 let seq = 100;
 let offers: Offer[] = [
   { id: 1, name: "Премиальный депозит 24%", type: "Сберегательный продукт", icon: "star", desc: "Повышенная ставка для Champions-сегмента. Минимум ₽ 50 млн, капитализация ежемесячно.", prop: 88, channels: ["Push", "App-баннер"], status: "nbo", rank: "NBO #1" },
-  { id: 2, name: "Premium HUMO Metal", type: "Карточный апгрейд", icon: "card", desc: "Бесплатный выпуск металлической карты с кешбэком 3% и lounge-доступом.", prop: 73, channels: ["Push", "SMS"], status: "nbo", rank: "NBO #2" },
+  { id: 2, name: "Premium Metal", type: "Карточный апгрейд", icon: "card", desc: "Бесплатный выпуск металлической карты с кешбэком 3% и lounge-доступом.", prop: 73, channels: ["Push", "SMS"], status: "nbo", rank: "NBO #2" },
   { id: 3, name: "Авто-рассрочка 0-0-12", type: "Кредитный продукт", icon: "split", desc: "Беспроцентная рассрочка на 12 месяцев для покупателей категории «авто».", prop: 41, channels: ["E-mail"], status: "draft" },
   { id: 4, name: "Cashback «Лето» 5%", type: "Транзакционный", icon: "check", desc: "Сезонный кешбэк по категории «рестораны». Принят клиентом 18.06, активен до 31.08.", prop: 100, channels: ["Push"], status: "accepted" },
 ];

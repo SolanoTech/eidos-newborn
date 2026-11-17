@@ -18,16 +18,16 @@ import { Chip, Icon, St, ViewBar, toast } from "@eidos/ui-kit";
 
 // ДЕМО-раздел: направления доставки данных — витрина макета.
 const ROWS = [
-  { nm: "Webhook · CRM «Единое окно»", sub: "POST https://crm.humo.uz/hooks/eidos · события profile_update, consent_change", ok: true, stTxt: "активен", extra: "99.98% успешных за 7 дн" },
+  { nm: "Webhook · CRM «Единое окно»", sub: "POST https://crm.example.com/hooks/eidos · события profile_update, consent_change", ok: true, stTxt: "активен", extra: "99.98% успешных за 7 дн" },
   { nm: "Kafka · топик gr-events", sub: "Исходящий поток изменений Golden Records · avro, compaction", ok: true, stTxt: "активен", extra: "2.1 тыс msg/мин" },
-  { nm: "S3 · ежесуточная выгрузка витрин", sub: "s3://dwh-humo/eidos/daily · parquet · 03:00 UTC+5", ok: true, stTxt: "активен", extra: "последняя: сегодня 03:04" },
-  { nm: "BI · HUMO Intelligence", sub: "Прямое подключение к витринам качества и сегментов", ok: true, stTxt: "активен", extra: "read-only" },
-  { nm: "Webhook · Anti-fraud", sub: "POST https://af.humo.uz/eidos · событие identity_merge", ok: false, stTxt: "ошибки", extra: "3 ретрая за час · 502" },
+  { nm: "S3 · ежесуточная выгрузка витрин", sub: "s3://dwh-example/eidos/daily · parquet · 03:00 UTC+5", ok: true, stTxt: "активен", extra: "последняя: сегодня 03:04" },
+  { nm: "BI · Корпоративная аналитика", sub: "Прямое подключение к витринам качества и сегментов", ok: true, stTxt: "активен", extra: "read-only" },
+  { nm: "Webhook · Anti-fraud", sub: "POST https://antifraud.example.com/eidos · событие identity_merge", ok: false, stTxt: "ошибки", extra: "3 ретрая за час · 502" },
 ];
 
 export function IntegrationsPage() {
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Интеграции и выгрузки"
