@@ -70,7 +70,7 @@ export function CommsPage() {
   };
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Коммуникации"
@@ -89,7 +89,7 @@ export function CommsPage() {
         <div className={"filter-panel" + (filterOpen ? " show" : "")}>
           <div className="fp-group">
             <div className="fp-label">Канал коммуникации</div>
-            <div className="fp-chips">
+            <div className="fchips">
               {ALL_CHANNELS.map(([ch, label]) => (
                 <span key={ch} className={"fchip" + (channels.has(ch) ? " on" : "")} onClick={() => toggleChannel(ch)}>{label}</span>
               ))}
@@ -97,7 +97,7 @@ export function CommsPage() {
           </div>
           <div className="fp-group">
             <div className="fp-label">Тип коммуникации</div>
-            <div className="fp-chips">
+            <div className="fchips">
               {([["all", "Все"], ["offer", "Оффер"], ["service", "Сервисная"]] as const).map(([t, label]) => (
                 <span key={t} className={"fchip" + (type === t ? " on" : "")} onClick={() => setType(t)}>{label}</span>
               ))}

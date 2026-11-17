@@ -82,7 +82,7 @@ export function LegalSearchPage() {
   const canRun = mode === "inn" ? inn.trim().length > 0 : name.trim().length > 0;
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="search-view">
         <div className="sv-head">
           <div className="sv-title">Поиск юридических лиц</div>
@@ -92,7 +92,7 @@ export function LegalSearchPage() {
           </div>
         </div>
 
-        <div className="modes" style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <div className="mode-switch">
           <button
             className={`btn btn-sm ${mode === "inn" ? "btn-primary" : "btn-ghost"}`}
             onClick={() => { setMode("inn"); setResults(null); setError(null); }}

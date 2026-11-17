@@ -290,7 +290,7 @@ export function C360Page() {
 
   if (!clientId) {
     return (
-      <section className="view-panel">
+      <section className="view-panel active">
         <div className="wrap">
           <div className="sv-empty">
             Клиент не выбран.{" "}
@@ -319,7 +319,7 @@ export function C360Page() {
   const sourcesCount = groupSources(meta).length;
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Customer 360"
@@ -344,7 +344,7 @@ export function C360Page() {
 
         <div className="golden" role="button" tabIndex={0} onClick={() => setModal("sources")} style={{ marginBottom: 16 }} title="Показать источники слияния">
           <div className="gr-top"><b>◆</b> Golden Record · Единая запись <span className="gr-hint">Источники слияния →</span></div>
-          <div className="gr-id">{detail?.grClientId ?? "—"}</div>
+          <div className="gr-id t-grad">{detail?.grClientId ?? "—"}</div>
           <div className="gr-row">
             <div className="gr-stat"><div className="l">Версия записи</div><div className="n">{detail?.version ?? "—"}</div></div>
             <div className="gr-stat"><div className="l">Источников слито</div><div className="n">{sourcesCount}</div></div>
@@ -387,7 +387,7 @@ export function C360Page() {
           </CardPanel>
           <CardPanel title="Продукты на руках" right={<Chip tone="info">демо</Chip>}>
             <div className="attrs">
-              <div className="attr"><span className="k">Дебетовая HUMO</span><span className="v">2 карты</span></div>
+              <div className="attr"><span className="k">Дебетовая карта</span><span className="v">2 карты</span></div>
               <div className="attr"><span className="k">Депозит</span><span className="v">₽ 95 млн</span></div>
               <div className="attr"><span className="k">Рассрочка</span><span className="v">активна</span></div>
               <div className="attr"><span className="k">Кредитная линия</span><span className="v" style={{ color: "var(--ink-dim)" }}>нет</span></div>

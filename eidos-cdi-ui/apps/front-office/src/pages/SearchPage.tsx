@@ -105,7 +105,7 @@ export function SearchPage() {
   };
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="search-view">
         <div className="sv-head">
           <div className="sv-title">{subject === "client" ? "Поиск клиента" : "Поиск мерчанта"}</div>
@@ -115,7 +115,7 @@ export function SearchPage() {
               : "Точная идентификация по ИНН либо подбор по названию мерчанта."}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <div className="mode-switch">
           <button
             className={`btn btn-sm ${subject === "client" ? "btn-primary" : "btn-ghost"}`}
             onClick={() => switchSubject("client")}

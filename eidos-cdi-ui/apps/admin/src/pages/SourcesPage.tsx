@@ -138,7 +138,7 @@ export function SourcesPage() {
   };
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Реестр источников"

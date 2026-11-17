@@ -118,7 +118,7 @@ export function LegalCardPage() {
   ] : [];
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap" style={{ maxWidth: 980 }}>
         <button className="link-back" onClick={() => navigate("/legal-search")}>
           <Icon name="back" size={14} />

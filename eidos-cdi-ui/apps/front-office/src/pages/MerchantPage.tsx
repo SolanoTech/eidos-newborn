@@ -103,7 +103,7 @@ export function MerchantPage() {
   ] : [];
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap" style={{ maxWidth: 1080 }}>
         <button className="link-back" onClick={() => navigate("/search")}>
           <Icon name="back" size={14} />

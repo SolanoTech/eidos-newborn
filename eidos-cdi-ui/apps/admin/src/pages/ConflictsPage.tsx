@@ -183,7 +183,7 @@ export function ConflictsPage() {
   const resolve = vertical === "person" ? resolveConflict : resolveLegalConflict;
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Очередь конфликтов"

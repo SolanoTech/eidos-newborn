@@ -50,7 +50,7 @@ export function AuditPage() {
   };
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap" style={{ maxWidth: 840 }}>
         <ViewBar
           title="Аудит-лог"

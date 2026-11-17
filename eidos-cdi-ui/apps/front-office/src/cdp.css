@@ -118,7 +118,7 @@
   .filter-panel.show{display:flex;flex-wrap:wrap;gap:16px 30px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;margin-bottom:16px}
   .fp-group{display:flex;flex-direction:column;gap:9px}
   .fp-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);font-weight:300}
-  .fp-chips{display:flex;gap:7px;flex-wrap:wrap}
+  
   .fchip{font-size:11.5px;padding:7px 13px;border-radius:20px;border:1px solid var(--line-2);color:var(--ink-2);background:var(--panel-2);cursor:pointer;transition:.15s;user-select:none}
   .fchip:hover{border-color:var(--accent);color:var(--ink)}
   .fchip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}

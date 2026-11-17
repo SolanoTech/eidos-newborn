@@ -34,7 +34,7 @@ export function PrivacyPage() {
   };
   const open = rows.filter((r) => r.st !== "done").length;
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Приватность · GDPR"

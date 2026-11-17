@@ -35,7 +35,7 @@ export function SchemaPage() {
     toast(`Демо: трекинг «${rows[i].ev}» ${rows[i].on ? "выключен" : "включён"}`);
   };
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Схема событий"

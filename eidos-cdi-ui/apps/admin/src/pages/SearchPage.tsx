@@ -63,7 +63,7 @@ export function SearchPage() {
   };
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="search-view">
         <div className="sv-head">
           <div className="sv-title">Поиск Golden Records</div>

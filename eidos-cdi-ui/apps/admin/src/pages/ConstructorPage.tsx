@@ -233,7 +233,7 @@ export function ConstructorPage() {
   const selected = sources.find((s) => s.id === sourceId) ?? null;
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Конструктор контракта"

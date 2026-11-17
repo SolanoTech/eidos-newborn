@@ -73,7 +73,7 @@ export function ChatPage() {
   };
 
   return (
-    <section className="view-panel" data-view="chat" style={{ display: "flex", flexDirection: "column", paddingBottom: 24 }}>
+    <section className="view-panel active" data-view="chat" style={{ display: "flex", flexDirection: "column", paddingBottom: 24 }}>
       <div className="view-bar" style={{ maxWidth: 900, width: "100%", margin: "0 auto 18px" }}>
         <div>
           <div className="vb-title">AI-чат с клиентом</div>

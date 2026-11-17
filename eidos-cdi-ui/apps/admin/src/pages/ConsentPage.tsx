@@ -34,7 +34,7 @@ export function ConsentPage() {
     toast(`Демо: категория «${rows[i].nm}» ${rows[i].on ? "выключена" : "включена"}`);
   };
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Согласия и политика контактов"

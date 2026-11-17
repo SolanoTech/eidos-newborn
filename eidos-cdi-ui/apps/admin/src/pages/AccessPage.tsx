@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { CardPanel, Icon } from "@eidos/ui-kit";
+import { CardPanel, Icon, ViewBar } from "@eidos/ui-kit";
 
 const KC_BASE =
   (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_KC_URL ??
@@ -29,63 +29,60 @@ const KC_ADMIN = `${KC_BASE}/admin/master/console/#/eidos`;
  */
 export function AccessPage() {
   return (
-    <>
-      <div className="page-head">
-        <div>
-          <h1>Доступ и роли</h1>
-          <p className="sub">
-            Управление перенесено в Keycloak (realm <b>eidos</b>) — единый вход,
-            роли и сервисные аккаунты
-          </p>
+    <section className="view-panel active">
+      <div className="wrap">
+        <ViewBar
+          title="Доступы и API"
+          sub="Управление перенесено в Keycloak (realm eidos): единый вход, роли и сервисные аккаунты."
+        />
+
+        <div className="grid g-2">
+          <CardPanel title="Пользователи консоли" right={<Icon name="users" />}>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Создание, блокировка, смена пароля и назначение роли ADMIN — в разделе{" "}
+              <b>Users</b> realm'а eidos.
+            </p>
+            <a
+              className="btn btn-primary"
+              href={`${KC_ADMIN}/users`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Открыть Users в Keycloak
+            </a>
+          </CardPanel>
+
+          <CardPanel title="API-ключи → сервисные аккаунты" right={<Icon name="key" />}>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Вместо таблицы ключей — OAuth2-клиенты с грантом{" "}
+              <code>client_credentials</code> (пример: <b>eidos-m2m</b>). Ротация
+              секрета и отзыв — в разделе <b>Clients</b>.
+            </p>
+            <a
+              className="btn btn-primary"
+              href={`${KC_ADMIN}/clients`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Открыть Clients в Keycloak
+            </a>
+          </CardPanel>
         </div>
+
+        <CardPanel title="Как это работает">
+          <ul className="muted" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+            <li>Консоли входят через Keycloak (OIDC Authorization Code + PKCE).</li>
+            <li>
+              Сервисы проверяют подпись токена по JWKS realm'а; роль{" "}
+              <code>ADMIN</code> приходит в claim <code>realm_access.roles</code>.
+            </li>
+            <li>
+              Admin-маршруты идут через Gravitee API Gateway, который валидирует
+              JWT на краю и подставляет внутренние заголовки доверия.
+            </li>
+          </ul>
+          </CardPanel>
       </div>
-
-      <div className="grid2">
-        <CardPanel title="Пользователи консоли" right={<Icon name="users" />}>
-          <p className="sub" style={{ marginTop: 0 }}>
-            Создание, блокировка, смена пароля и назначение роли ADMIN — в разделе{" "}
-            <b>Users</b> realm'а eidos.
-          </p>
-          <a
-            className="btn btn-primary"
-            href={`${KC_ADMIN}/users`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Открыть Users в Keycloak
-          </a>
-        </CardPanel>
-
-        <CardPanel title="API-ключи → сервисные аккаунты" right={<Icon name="key" />}>
-          <p className="sub" style={{ marginTop: 0 }}>
-            Вместо таблицы ключей — OAuth2-клиенты с грантом{" "}
-            <code>client_credentials</code> (пример: <b>eidos-m2m</b>). Ротация
-            секрета и отзыв — в разделе <b>Clients</b>.
-          </p>
-          <a
-            className="btn btn-primary"
-            href={`${KC_ADMIN}/clients`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Открыть Clients в Keycloak
-          </a>
-        </CardPanel>
-      </div>
-
-      <CardPanel title="Как это работает">
-        <ul className="sub" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-          <li>Консоли входят через Keycloak (OIDC Authorization Code + PKCE).</li>
-          <li>
-            Сервисы проверяют подпись токена по JWKS realm'а; роль{" "}
-            <code>ADMIN</code> приходит в claim <code>realm_access.roles</code>.
-          </li>
-          <li>
-            Admin-маршруты идут через Gravitee API Gateway, который валидирует
-            JWT на краю и подставляет внутренние заголовки доверия.
-          </li>
-        </ul>
-      </CardPanel>
-    </>
+    </section>
   );
 }

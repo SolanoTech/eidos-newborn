@@ -20,7 +20,7 @@ import { WelcomeDrop } from "@eidos/ui-kit";
 export function WelcomePage() {
   const navigate = useNavigate();
   return (
-    <section className="view-panel" style={{ padding: 0 }}>
+    <section className="view-panel active" style={{ padding: 0 }}>
       <WelcomeDrop
         title="EIDOS"
         sub="Customer Data Platform"

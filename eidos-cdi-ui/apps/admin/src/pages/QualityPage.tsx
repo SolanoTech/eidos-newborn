@@ -29,7 +29,7 @@ export function QualityPage() {
   }, []);
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Качество данных"

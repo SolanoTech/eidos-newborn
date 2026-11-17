@@ -80,7 +80,7 @@ export function KafkaPage() {
   };
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap" style={{ maxWidth: 640 }}>
         <ViewBar title="Конфигурация Kafka" sub="Консьюмер шлюза приёма данных. Сохранение перезапускает приём." />
         {!loaded ? (

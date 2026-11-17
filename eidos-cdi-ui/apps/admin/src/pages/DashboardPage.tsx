@@ -36,7 +36,7 @@ export function DashboardPage() {
   const autoMerge = m && m.grTotal > 0 ? Math.round((1 - m.tentativeTotal / m.grTotal) * 1000) / 10 : null;
 
   return (
-    <section className="view-panel">
+    <section className="view-panel active">
       <div className="wrap">
         <ViewBar
           title="Обзор платформы"
